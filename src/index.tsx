@@ -752,6 +752,8 @@ input{font-size:16px!important}
   animation:sheetUp .25s ease-out;
 }
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes bubblePop{0%{transform:scale(0.4) translateY(8px);opacity:0}70%{transform:scale(1.08) translateY(-2px)}100%{transform:scale(1) translateY(0);opacity:1}}
+@keyframes bubbleFadeOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.8) translateY(-6px)}}
 .modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
 .modal-title{font-size:18px;font-weight:800;margin-bottom:6px}
 .modal-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
@@ -988,6 +990,8 @@ const S = {
   token: null, userId: null, displayName: null, avatar: null,
   lat: null, lng: null,
   map: null, myMarker: null, friendMarkers: {},
+  chatBubbleOverlays: {},  // uid -> overlay
+  chatBubbleTimers: {},    // uid -> timeout
   aptMarker: null, appointment: null,
   friends: [], pendingReqs: [],
   currentRoom: 'everyone', lastChatTs: 0, lastSOSTs: 0,
@@ -1129,10 +1133,52 @@ function initMap() {
 }
 
 function makeOverlayContent(avatar, name, color, isMe) {
-  return \`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
-    <div style="width:46px;height:46px;border-radius:50%;background:\${color};display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid \${isMe?'#a855f7':'white'};box-shadow:0 4px 14px rgba(0,0,0,0.5);">\${avatar}</div>
-    <div style="background:rgba(10,10,15,0.85);color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;backdrop-filter:blur(4px);">\${name}</div>
-  </div>\`
+  return '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">'
+    + '<div style="width:46px;height:46px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid '+(isMe?'#a855f7':'white')+';box-shadow:0 4px 14px rgba(0,0,0,0.5);">'+avatar+'</div>'
+    + '<div style="background:rgba(10,10,15,0.85);color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;backdrop-filter:blur(4px);">'+name+'</div>'
+    + '</div>'
+}
+
+function makeBubbleContent(text, color, isMe) {
+  const maxLen = 30
+  const display = text.length > maxLen ? text.slice(0, maxLen) + '...' : text
+  const arrow = isMe
+    ? '<div style="position:absolute;bottom:-7px;right:14px;width:0;height:0;border-left:7px solid transparent;border-right:0px solid transparent;border-top:7px solid '+color+';"></div>'
+    : '<div style="position:absolute;bottom:-7px;left:14px;width:0;height:0;border-left:0px solid transparent;border-right:7px solid transparent;border-top:7px solid '+color+';"></div>'
+  return '<div style="position:relative;background:'+color+';color:white;padding:7px 11px;border-radius:14px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.45);max-width:180px;word-break:break-all;white-space:normal;line-height:1.4;backdrop-filter:blur(8px);animation:bubblePop .25s cubic-bezier(.34,1.56,.64,1);">'
+    + esc(display)
+    + arrow
+    + '</div>'
+}
+
+function showMapBubble(uid, text, lat, lng) {
+  if(!S.map || typeof kakao === 'undefined') return
+  if(!lat || !lng) return
+  const isMe = uid === S.userId
+  const color = isMe ? '#7c3aed' : getColor(uid)
+  const content = makeBubbleContent(text, color, isMe)
+  const pos = new kakao.maps.LatLng(lat, lng)
+  // 기존 말풍선 제거
+  if(S.chatBubbleOverlays[uid]) {
+    S.chatBubbleOverlays[uid].setMap(null)
+    delete S.chatBubbleOverlays[uid]
+  }
+  if(S.chatBubbleTimers[uid]) {
+    clearTimeout(S.chatBubbleTimers[uid])
+    delete S.chatBubbleTimers[uid]
+  }
+  const el = makeOverlayEl(content)
+  // 마커 위 위치 (yAnchor: 마커 높이 + 말풍선 높이 고려)
+  const ov = new kakao.maps.CustomOverlay({position: pos, content: el, yAnchor: 3.2, zIndex: 10})
+  ov.setMap(S.map)
+  S.chatBubbleOverlays[uid] = ov
+  // 5초 후 자동 제거
+  S.chatBubbleTimers[uid] = setTimeout(() => {
+    if(S.chatBubbleOverlays[uid]) {
+      S.chatBubbleOverlays[uid].setMap(null)
+      delete S.chatBubbleOverlays[uid]
+    }
+  }, 5000)
 }
 
 const MCOLORS=['#7c3aed','#ec4899','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ef4444','#14b8a6']
@@ -1395,20 +1441,30 @@ function appendMsg(m) {
   const isSys=m.type==='system'
   const isSOS=m.type==='sos'
   const t=new Date(m.timestamp).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
-  if(isSys){c.insertAdjacentHTML('beforeend',\`<div class="msg-system">\${esc(m.message)}</div>\`);return}
+  if(isSys){c.insertAdjacentHTML('beforeend','<div class="msg-system">'+esc(m.message)+'</div>');return}
+
+  // ── 지도 말풍선 ─────────────────────────────────────
+  if(m.type!=='sos'&&m.type!=='location'){
+    if(isMe&&S.lat&&S.lng){
+      showMapBubble(m.userId,m.message,S.lat,S.lng)
+    } else {
+      const fr=S.friends.find(function(f){return f.userId===m.userId})
+      if(fr&&fr.location) showMapBubble(m.userId,m.message,fr.location.lat,fr.location.lng)
+    }
+  }
+  // ────────────────────────────────────────────────────
+
   const cls=isSOS?'msg-row msg-sos':isMe?'msg-row me':'msg-row'
-  const avatarHtml=isMe?'':(\`<div class="msg-avatar">\${m.avatar||'🐻'}</div>\`)
-  const senderHtml=isMe?'':(\`<div class="msg-sender">\${esc(m.userName)}</div>\`)
-  c.insertAdjacentHTML('beforeend',\`<div class="\${cls}">
-    \${avatarHtml}
-    <div class="msg-body">
-      \${senderHtml}
-      <div style="display:flex;align-items:flex-end;gap:4px\${isMe?';flex-direction:row-reverse':''}">
-        <div class="msg-bubble">\${esc(m.message)}</div>
-        <div class="msg-time">\${t}</div>
-      </div>
-    </div>
-  </div>\`)
+  const avatarHtml=isMe?'':'<div class="msg-avatar">'+(m.avatar||'🐻')+'</div>'
+  const senderHtml=isMe?'':'<div class="msg-sender">'+esc(m.userName)+'</div>'
+  const flexDir=isMe?';flex-direction:row-reverse':''
+  c.insertAdjacentHTML('beforeend',
+    '<div class="'+cls+'">'+avatarHtml+'<div class="msg-body">'+senderHtml
+    +'<div style="display:flex;align-items:flex-end;gap:4px'+flexDir+'">'
+    +'<div class="msg-bubble">'+esc(m.message)+'</div>'
+    +'<div class="msg-time">'+t+'</div>'
+    +'</div></div></div>'
+  )
 }
 
 async function sendChat() {
