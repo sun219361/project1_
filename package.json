@@ -1,12 +1,18 @@
 {
-  "name": "webapp",
+  "name": "meetup-korea",
+  "version": "1.0.0",
   "type": "module",
+  "description": "친구들과 실시간 위치 공유 앱 (한국형)",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "wrangler pages dev",
-    "deploy": "npm run build && wrangler pages deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+    "dev":           "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
+    "build":         "vite build",
+    "preview":       "wrangler pages dev dist",
+    "deploy":        "npm run build && wrangler pages deploy dist --project-name meetup-korea",
+    "cf-typegen":    "wrangler types --env-interface CloudflareBindings",
+    "setup:kv":      "npx wrangler kv namespace create meetup_KV",
+    "secret:kakao":  "npx wrangler pages secret put KAKAO_MAP_KEY --project-name meetup-korea",
+    "secret:odsay":  "npx wrangler pages secret put ODSAY_API_KEY --project-name meetup-korea",
+    "secret:list":   "npx wrangler pages secret list --project-name meetup-korea"
   },
   "dependencies": {
     "hono": "^4.12.9"

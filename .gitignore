@@ -1,7 +1,62 @@
+# ════════════════════════════════════════
+#  모여봐 (meetup-korea) .gitignore
+#  ⚠️  이 파일에 있는 항목들은 절대 GitHub에 올라가지 않습니다
+# ════════════════════════════════════════
+
+# ── 의존성 패키지 ──────────────────────
 node_modules/
+.npm
+.yarn
+
+# ── 빌드 산출물 ────────────────────────
 dist/
-.wrangler/
-.dev.vars
+build/
+.output/
+
+# ── Cloudflare / Wrangler ───────────────
+.wrangler/          # 로컬 KV, D1 데이터가 저장되는 폴더
+.dev.vars           # ⚠️  로컬 개발용 비밀 환경변수 (절대 커밋 금지!)
+
+# ── 환경변수 / 비밀키 ──────────────────
+.env                # 일반 환경변수
+.env.local
+.env.development
+.env.production
+.env.test
+*.secret            # .secret 확장자 파일 전체
+
+# ── API 키 관련 파일 ────────────────────
+secrets.json
+config.local.json
+apikeys.txt
+kakao_key.txt
+odsay_key.txt
+
+# ── 로그 파일 ──────────────────────────
 *.log
-.env
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── 에디터 설정 ────────────────────────
+.vscode/settings.json   # 개인 설정 (extensions.json은 공유 가능)
+.idea/
+*.swp
+*.swo
+.DS_Store               # macOS 폴더 메타데이터
+Thumbs.db               # Windows 썸네일 캐시
+
+# ── 압축 / 백업 파일 ────────────────────
 *.tar.gz
+*.zip
+*.bak
+*.backup
+
+# ── 키스토어 (Android 앱 서명 키 - 절대 올리면 안됨!) ──
+*.keystore
+*.jks
+*.p12
+
+# ── TypeScript 캐시 ────────────────────
+*.tsbuildinfo

@@ -1,7 +1,11 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
-type Bindings = { KV: KVNamespace }
+type Bindings = {
+  KV: KVNamespace
+  KAKAO_MAP_KEY: string   // 카카오맵 JavaScript 앱 키
+  ODSAY_API_KEY: string   // ODsay 대중교통 API 키
+}
 const app = new Hono<{ Bindings: Bindings }>()
 app.use('/api/*', cors())
 
@@ -252,8 +256,8 @@ app.get('/api/appointment/:roomId', async (c) => {
 // ── 대중교통 ──────────────────────────────────────────────────
 app.get('/api/transit', async (c) => {
   const { sx, sy, ex, ey } = c.req.query()
-  const apiKey = (c.env as any).ODSAY_API_KEY
-  if (!apiKey || apiKey === 'demo') {
+  const apiKey = c.env.ODSAY_API_KEY
+  if (!apiKey || apiKey === 'demo' || apiKey.startsWith('여기에')) {
     return c.json({ demo: true, result: { path: [
       { pathType: 1, info: { totalTime: 38, payment: 1400, busTransitCount: 0, subwayTransitCount: 1 },
         subPath: [{ trafficType: 1, sectionTime: 38, lane: [{ name: '2호선', subwayCode: 2 }], startName: '출발역', endName: '도착역' }] },
@@ -268,14 +272,18 @@ app.get('/api/transit', async (c) => {
   } catch { return c.json({ error: 'API error' }, 500) }
 })
 
-// ── 메인 HTML ─────────────────────────────────────────────────
-app.get('*', (c) => c.html(HTML))
+// ── 메인 HTML (카카오 키를 서버에서 동적 주입) ────────────────
+app.get('*', (c) => {
+  const kakaoKey = c.env.KAKAO_MAP_KEY || ''
+  const html = getHTML(kakaoKey)
+  return c.html(html)
+})
 
+function getHTML(kakaoKey: string): string {
 const HTML = `<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>모여봐</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -981,7 +989,7 @@ input{font-size:16px!important}
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&libraries=services"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services"></script>
 <script>
 // ════════════════════════════════════════════════════════════
 //  STATE
@@ -1720,5 +1728,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 </body>
 </html>`
+  return HTML
+}
 
 export default app

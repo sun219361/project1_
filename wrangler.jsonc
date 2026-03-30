@@ -4,6 +4,11 @@
   "compatibility_date": "2024-01-01",
   "pages_build_output_dir": "./dist",
   "compatibility_flags": ["nodejs_compat"],
+
+  // ── Cloudflare KV 스토리지 (데이터베이스 역할) ─────────────────
+  // 배포 전 반드시 실제 KV ID로 교체:
+  //   npx wrangler kv namespace create meetup_KV
+  // 출력된 id를 아래 "id" 필드에 붙여넣기
   "kv_namespaces": [
     {
       "binding": "KV",
@@ -11,4 +16,10 @@
       "preview_id": "placeholder_kv_preview_id"
     }
   ]
+
+  // ── 환경변수(시크릿)는 아래 방법으로 등록 ─────────────────────
+  // 로컬 개발: .dev.vars 파일에 작성
+  // 프로덕션 배포:
+  //   npx wrangler pages secret put KAKAO_MAP_KEY --project-name meetup-korea
+  //   npx wrangler pages secret put ODSAY_API_KEY --project-name meetup-korea
 }
