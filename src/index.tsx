@@ -61,14 +61,14 @@ app.get('/api/me', async (c) => {
   return c.json({ userId: user.userId, displayName: user.displayName, avatar: user.avatar })
 })
 
-// ── 친구 요청 ─────────────────────────────────────────────────
+// ── 친구 ──────────────────────────────────────────────────────
 async function acceptFriendship(kv: KVNamespace, a: string, b: string) {
-  const aRaw = await kv.get(`friends:${a}`); const aList = aRaw ? JSON.parse(aRaw) : []
-  const bRaw = await kv.get(`friends:${b}`); const bList = bRaw ? JSON.parse(bRaw) : []
+  const [aRaw, bRaw] = await Promise.all([kv.get(`friends:${a}`), kv.get(`friends:${b}`)])
+  const aList = aRaw ? JSON.parse(aRaw) : []
+  const bList = bRaw ? JSON.parse(bRaw) : []
   if (!aList.includes(b)) aList.push(b)
   if (!bList.includes(a)) bList.push(a)
-  await kv.put(`friends:${a}`, JSON.stringify(aList))
-  await kv.put(`friends:${b}`, JSON.stringify(bList))
+  await Promise.all([kv.put(`friends:${a}`, JSON.stringify(aList)), kv.put(`friends:${b}`, JSON.stringify(bList))])
 }
 
 app.post('/api/friends/request', async (c) => {
@@ -77,14 +77,16 @@ app.post('/api/friends/request', async (c) => {
   const { targetUserId } = await c.req.json()
   const tid = targetUserId?.toLowerCase()
   if (!tid || tid === me.userId) return c.json({ error: '잘못된 요청' }, 400)
-  const targetRaw = await c.env.KV.get(`user:${tid}`)
+  const [targetRaw, friendsRaw, existing, reverseReq] = await Promise.all([
+    c.env.KV.get(`user:${tid}`),
+    c.env.KV.get(`friends:${me.userId}`),
+    c.env.KV.get(`friend_req:${tid}:${me.userId}`),
+    c.env.KV.get(`friend_req:${me.userId}:${tid}`)
+  ])
   if (!targetRaw) return c.json({ error: '존재하지 않는 사용자입니다' }, 404)
-  const friendsRaw = await c.env.KV.get(`friends:${me.userId}`)
   const myFriends = friendsRaw ? JSON.parse(friendsRaw) : []
   if (myFriends.includes(tid)) return c.json({ error: '이미 친구입니다' }, 409)
-  const existing = await c.env.KV.get(`friend_req:${tid}:${me.userId}`)
   if (existing) return c.json({ error: '이미 친구 요청을 보냈습니다' }, 409)
-  const reverseReq = await c.env.KV.get(`friend_req:${me.userId}:${tid}`)
   if (reverseReq) {
     await acceptFriendship(c.env.KV, me.userId, tid)
     await c.env.KV.delete(`friend_req:${me.userId}:${tid}`)
@@ -99,8 +101,10 @@ app.post('/api/friends/accept', async (c) => {
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const { fromUserId } = await c.req.json()
   const fid = fromUserId?.toLowerCase()
-  await acceptFriendship(c.env.KV, me.userId, fid)
-  await c.env.KV.delete(`friend_req:${me.userId}:${fid}`)
+  await Promise.all([
+    acceptFriendship(c.env.KV, me.userId, fid),
+    c.env.KV.delete(`friend_req:${me.userId}:${fid}`)
+  ])
   return c.json({ success: true })
 })
 
@@ -116,53 +120,39 @@ app.get('/api/friends/requests', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const list = await c.env.KV.list({ prefix: `friend_req:${me.userId}:` })
-  const requests = []
-  for (const key of list.keys) {
-    const val = await c.env.KV.get(key.name)
-    if (val) requests.push(JSON.parse(val))
-  }
+  const vals = await Promise.all(list.keys.map(k => c.env.KV.get(k.name)))
+  const requests = vals.filter(Boolean).map(v => JSON.parse(v!))
   return c.json({ requests })
 })
 
-// ── 친구 목록 + 위치 + 권한 ───────────────────────────────────
+// ── 친구 목록 + 위치 (병렬 최적화) ───────────────────────────
 app.get('/api/friends', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
-  const raw = await c.env.KV.get(`friends:${me.userId}`)
+  const [raw, myPermRaw, myViewRaw] = await Promise.all([
+    c.env.KV.get(`friends:${me.userId}`),
+    c.env.KV.get(`loc_perm:${me.userId}`),
+    c.env.KV.get(`view_perm:${me.userId}`)
+  ])
   const friendIds: string[] = raw ? JSON.parse(raw) : []
-  // 내 위치 공개 권한 설정
-  const myPermRaw = await c.env.KV.get(`loc_perm:${me.userId}`)
   const myPerm: Record<string, boolean> = myPermRaw ? JSON.parse(myPermRaw) : {}
-  // 내 위치 표시 숨기기 설정 (내가 친구를 볼 것인지)
-  const myViewRaw = await c.env.KV.get(`view_perm:${me.userId}`)
   const myView: Record<string, boolean> = myViewRaw ? JSON.parse(myViewRaw) : {}
-  const friends = []
-  for (const fid of friendIds) {
-    const ufRaw = await c.env.KV.get(`user:${fid}`)
-    if (!ufRaw) continue
+  if (!friendIds.length) return c.json({ friends: [] })
+  const results = await Promise.all(friendIds.map(async fid => {
+    const [ufRaw, fPermRaw, locRaw] = await Promise.all([
+      c.env.KV.get(`user:${fid}`),
+      c.env.KV.get(`loc_perm:${fid}`),
+      myView[fid] !== false ? c.env.KV.get(`loc:${fid}`) : Promise.resolve(null)
+    ])
+    if (!ufRaw) return null
     const uf = JSON.parse(ufRaw)
-    // 상대방 위치: 상대가 나에게 공개 허용했는지 확인
-    const fPermRaw = await c.env.KV.get(`loc_perm:${fid}`)
     const fPerm: Record<string, boolean> = fPermRaw ? JSON.parse(fPermRaw) : {}
-    // 기본값: 허용 (명시적 false만 차단)
     const friendAllowsMe = fPerm[me.userId] !== false
-    // 내가 이 친구 위치를 보기로 했는지
     const iViewFriend = myView[fid] !== false
-    let location = null
-    if (friendAllowsMe && iViewFriend) {
-      const locRaw = await c.env.KV.get(`loc:${fid}`)
-      if (locRaw) location = JSON.parse(locRaw)
-    }
-    friends.push({
-      userId: uf.userId, displayName: uf.displayName, avatar: uf.avatar,
-      location,
-      // 내가 이 친구에게 내 위치를 공개하는가
-      iShareWithFriend: myPerm[fid] !== false,
-      // 내가 이 친구 위치를 보는가
-      iViewFriend: iViewFriend,
-    })
-  }
-  return c.json({ friends })
+    const location = (friendAllowsMe && iViewFriend && locRaw) ? JSON.parse(locRaw) : null
+    return { userId: uf.userId, displayName: uf.displayName, avatar: uf.avatar, location, iShareWithFriend: myPerm[fid] !== false, iViewFriend }
+  }))
+  return c.json({ friends: results.filter(Boolean) })
 })
 
 // ── 위치 업로드 ────────────────────────────────────────────────
@@ -170,11 +160,12 @@ app.post('/api/location', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const { lat, lng, accuracy } = await c.req.json()
-  await c.env.KV.put(`loc:${me.userId}`, JSON.stringify({ lat, lng, accuracy, updatedAt: Date.now() }), { expirationTtl: 3600 })
+  if (!lat || !lng) return c.json({ error: 'lat/lng required' }, 400)
+  await c.env.KV.put(`loc:${me.userId}`, JSON.stringify({ lat, lng, accuracy: accuracy || 20, updatedAt: Date.now() }), { expirationTtl: 3600 })
   return c.json({ success: true })
 })
 
-// ── 위치 공개 권한 설정 (내가 특정 친구에게 내 위치를 보여줄지) ──
+// ── 위치 공개 권한 설정 ────────────────────────────────────────
 app.post('/api/location/permission', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
@@ -186,7 +177,7 @@ app.post('/api/location/permission', async (c) => {
   return c.json({ success: true })
 })
 
-// ── 친구 위치 표시 설정 (내가 특정 친구 위치를 볼지) ─────────────
+// ── 친구 위치 표시 설정 ────────────────────────────────────────
 app.post('/api/location/view', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
@@ -198,19 +189,15 @@ app.post('/api/location/view', async (c) => {
   return c.json({ success: true })
 })
 
-// ── 채팅방 목록 조회 ──────────────────────────────────────────
+// ── 채팅방 목록 조회 (everyone 제거) ──────────────────────────
 app.get('/api/rooms', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const raw = await c.env.KV.get(`rooms:${me.userId}`)
   const roomIds: string[] = raw ? JSON.parse(raw) : []
-  const rooms = []
-  // 항상 everyone 포함
-  rooms.push({ roomId: 'everyone', name: '🌍 전체 채팅', type: 'global', members: [] })
-  for (const rid of roomIds) {
-    const roomRaw = await c.env.KV.get(`room:${rid}`)
-    if (roomRaw) rooms.push(JSON.parse(roomRaw))
-  }
+  if (!roomIds.length) return c.json({ rooms: [] })
+  const raws = await Promise.all(roomIds.map(rid => c.env.KV.get(`room:${rid}`)))
+  const rooms = raws.filter(Boolean).map(r => JSON.parse(r!))
   return c.json({ rooms })
 })
 
@@ -222,16 +209,74 @@ app.post('/api/rooms', async (c) => {
   if (!name || !Array.isArray(memberIds)) return c.json({ error: 'name and memberIds required' }, 400)
   const allMembers = [...new Set([me.userId, ...memberIds.map((id: string) => id.toLowerCase())])]
   const roomId = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
-  const roomData = { roomId, name, type: 'group', members: allMembers, createdBy: me.userId, createdAt: Date.now() }
+  const roomData = { roomId, name, type: 'group', members: allMembers, createdBy: me.userId, createdAt: Date.now(), locShare: false }
   await c.env.KV.put(`room:${roomId}`, JSON.stringify(roomData), { expirationTtl: 86400 * 30 })
-  // 모든 멤버의 rooms 목록에 추가
-  for (const uid of allMembers) {
+  await Promise.all(allMembers.map(async uid => {
     const rawR = await c.env.KV.get(`rooms:${uid}`)
     const rList: string[] = rawR ? JSON.parse(rawR) : []
     if (!rList.includes(roomId)) rList.push(roomId)
     await c.env.KV.put(`rooms:${uid}`, JSON.stringify(rList))
-  }
+  }))
   return c.json({ success: true, room: roomData })
+})
+
+// ── 채팅방 1:1 생성 or 기존 조회 ─────────────────────────────
+app.post('/api/rooms/dm', async (c) => {
+  const me = await getUser(c)
+  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  const { targetUserId } = await c.req.json()
+  const tid = targetUserId?.toLowerCase()
+  if (!tid) return c.json({ error: 'targetUserId required' }, 400)
+  const dmId = `dm_${[me.userId, tid].sort().join('_')}`
+  const existing = await c.env.KV.get(`room:${dmId}`)
+  if (existing) return c.json({ success: true, room: JSON.parse(existing) })
+  const targetRaw = await c.env.KV.get(`user:${tid}`)
+  if (!targetRaw) return c.json({ error: '존재하지 않는 사용자입니다' }, 404)
+  const target = JSON.parse(targetRaw)
+  const roomData = { roomId: dmId, name: target.displayName, type: 'dm', members: [me.userId, tid], createdBy: me.userId, createdAt: Date.now(), locShare: false }
+  await c.env.KV.put(`room:${dmId}`, JSON.stringify(roomData), { expirationTtl: 86400 * 30 })
+  await Promise.all([me.userId, tid].map(async uid => {
+    const rawR = await c.env.KV.get(`rooms:${uid}`)
+    const rList: string[] = rawR ? JSON.parse(rawR) : []
+    if (!rList.includes(dmId)) rList.push(dmId)
+    await c.env.KV.put(`rooms:${uid}`, JSON.stringify(rList))
+  }))
+  return c.json({ success: true, room: roomData })
+})
+
+// ── 채팅방 위치 공유 토글 ─────────────────────────────────────
+app.post('/api/rooms/:roomId/locshare', async (c) => {
+  const me = await getUser(c)
+  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const { enabled } = await c.req.json()
+  const roomRaw = await c.env.KV.get(`room:${roomId}`)
+  if (!roomRaw) return c.json({ error: 'Room not found' }, 404)
+  const room = JSON.parse(roomRaw)
+  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
+  room.locShare = !!enabled
+  await c.env.KV.put(`room:${roomId}`, JSON.stringify(room), { expirationTtl: 86400 * 30 })
+  return c.json({ success: true, locShare: room.locShare })
+})
+
+// ── 채팅방 멤버 위치 조회 ─────────────────────────────────────
+app.get('/api/rooms/:roomId/locations', async (c) => {
+  const me = await getUser(c)
+  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const roomRaw = await c.env.KV.get(`room:${roomId}`)
+  if (!roomRaw) return c.json({ locations: [], locShare: false })
+  const room = JSON.parse(roomRaw)
+  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
+  if (!room.locShare) return c.json({ locations: [], locShare: false })
+  const locs = await Promise.all(room.members.map(async (uid: string) => {
+    const [userRaw, locRaw] = await Promise.all([c.env.KV.get(`user:${uid}`), c.env.KV.get(`loc:${uid}`)])
+    if (!userRaw || !locRaw) return null
+    const user = JSON.parse(userRaw)
+    const loc = JSON.parse(locRaw)
+    return { userId: uid, displayName: user.displayName, avatar: user.avatar, ...loc }
+  }))
+  return c.json({ locations: locs.filter(Boolean), locShare: true })
 })
 
 // ── 채팅방 나가기 ─────────────────────────────────────────────
@@ -251,31 +296,41 @@ app.post('/api/chat', async (c) => {
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const { roomId, message, type } = await c.req.json()
   if (!roomId || !message) return c.json({ error: 'missing' }, 400)
-  const msgId = `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+  // 멤버 확인
+  const roomRaw = await c.env.KV.get(`room:${roomId}`)
+  if (!roomRaw) return c.json({ error: 'Room not found' }, 404)
+  const room = JSON.parse(roomRaw)
+  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
+  const ts = Date.now()
+  const msgId = `${ts}_${Math.random().toString(36).substr(2, 6)}`
   await c.env.KV.put(`chat:${roomId}:${msgId}`, JSON.stringify({
     msgId, userId: me.userId, userName: me.displayName, avatar: me.avatar,
-    message, type: type || 'text', timestamp: Date.now()
-  }), { expirationTtl: 86400 })
-  return c.json({ success: true, msgId })
+    message, type: type || 'text', timestamp: ts
+  }), { expirationTtl: 86400 * 2 })
+  return c.json({ success: true, msgId, timestamp: ts })
 })
 
-// ── 채팅 메시지 조회 (since 기반으로 빠른 폴링) ───────────────
+// ── 채팅 메시지 조회 (since 기반 최적화) ─────────────────────
 app.get('/api/chat/:roomId', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
+  // 멤버 확인
+  const roomRaw = await c.env.KV.get(`room:${roomId}`)
+  if (!roomRaw) return c.json({ messages: [] })
+  const room = JSON.parse(roomRaw)
+  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
   const since = Number(c.req.query('since') || '0')
   const list = await c.env.KV.list({ prefix: `chat:${roomId}:` })
-  const messages = []
-  for (const key of list.keys) {
-    // 키 이름에서 타임스탬프 추출해서 since 미만은 스킵 (불필요한 KV get 방지)
-    const tsPart = key.name.split(':')[2]?.split('_')[0]
-    if (tsPart && Number(tsPart) <= since) continue
-    const val = await c.env.KV.get(key.name)
-    if (val) { const m = JSON.parse(val); if (m.timestamp > since) messages.push(m) }
-  }
+  const filtered = list.keys.filter(k => {
+    const ts = Number(k.name.split(':')[2]?.split('_')[0] || '0')
+    return ts > since
+  })
+  if (!filtered.length) return c.json({ messages: [] })
+  const vals = await Promise.all(filtered.map(k => c.env.KV.get(k.name)))
+  const messages = vals.filter(Boolean).map(v => JSON.parse(v!)).filter(m => m.timestamp > since)
   messages.sort((a: any, b: any) => a.timestamp - b.timestamp)
-  return c.json({ messages: messages.slice(-80) })
+  return c.json({ messages: messages.slice(-60) })
 })
 
 // ── SOS 발송 ──────────────────────────────────────────────────
@@ -285,82 +340,61 @@ app.post('/api/sos', async (c) => {
   const { lat, lng } = await c.req.json()
   const raw = await c.env.KV.get(`friends:${me.userId}`)
   const friendIds: string[] = raw ? JSON.parse(raw) : []
-  const msgId = `${Date.now()}_sos`
-  const sosId = `sos_${me.userId}_${Date.now()}`
-  await c.env.KV.put(`chat:everyone:${msgId}`, JSON.stringify({
-    msgId, userId: me.userId, userName: me.displayName, avatar: me.avatar,
-    message: `🆘 SOS! ${me.displayName}님이 긴급 도움을 요청합니다!\n위치: ${lat?.toFixed(5)}, ${lng?.toFixed(5)}`,
-    type: 'sos', lat, lng, sosId, targets: [me.userId, ...friendIds], timestamp: Date.now()
-  }), { expirationTtl: 3600 })
-  // SOS 상태 저장 (확인/종료 추적용)
-  await c.env.KV.put(`sos_active:${sosId}`, JSON.stringify({
-    sosId, fromUserId: me.userId, fromName: me.displayName, lat, lng,
-    active: true, timestamp: Date.now(), acknowledgedBy: []
+  const ts = Date.now()
+  const sosId = `sos_${me.userId}_${ts}`
+  await c.env.KV.put(`sos:${sosId}`, JSON.stringify({
+    msgId: `${ts}_sos`, userId: me.userId, userName: me.displayName, avatar: me.avatar,
+    message: `🆘 SOS! ${me.displayName}님이 긴급 도움을 요청합니다!`,
+    lat, lng, sosId, targets: [me.userId, ...friendIds], timestamp: ts,
+    active: true, acknowledgedBy: []
   }), { expirationTtl: 3600 })
   return c.json({ success: true, sosId })
 })
 
-// ── SOS 확인 (acknowledge) ────────────────────────────────────
+// ── SOS 확인 ──────────────────────────────────────────────────
 app.post('/api/sos/acknowledge', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const { sosId } = await c.req.json()
   if (!sosId) return c.json({ error: 'sosId required' }, 400)
-  const raw = await c.env.KV.get(`sos_active:${sosId}`)
+  const raw = await c.env.KV.get(`sos:${sosId}`)
   if (!raw) return c.json({ error: 'SOS not found' }, 404)
   const sos = JSON.parse(raw)
   if (!sos.acknowledgedBy.includes(me.userId)) sos.acknowledgedBy.push(me.userId)
-  await c.env.KV.put(`sos_active:${sosId}`, JSON.stringify(sos), { expirationTtl: 3600 })
-  // 채팅에 확인 메시지 전송
-  const msgId = `${Date.now()}_ack`
-  await c.env.KV.put(`chat:everyone:${msgId}`, JSON.stringify({
-    msgId, userId: me.userId, userName: me.displayName, avatar: me.avatar,
-    message: `✅ ${me.displayName}님이 SOS를 확인했습니다`, type: 'system', timestamp: Date.now()
-  }), { expirationTtl: 3600 })
-  return c.json({ success: true })
+  await c.env.KV.put(`sos:${sosId}`, JSON.stringify(sos), { expirationTtl: 3600 })
+  return c.json({ success: true, acknowledgedBy: sos.acknowledgedBy })
 })
 
-// ── SOS 종료 (발신자만 가능) ──────────────────────────────────
+// ── SOS 종료 ──────────────────────────────────────────────────
 app.post('/api/sos/dismiss', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const { sosId } = await c.req.json()
   if (!sosId) return c.json({ error: 'sosId required' }, 400)
-  const raw = await c.env.KV.get(`sos_active:${sosId}`)
+  const raw = await c.env.KV.get(`sos:${sosId}`)
   if (!raw) return c.json({ error: 'SOS not found' }, 404)
   const sos = JSON.parse(raw)
+  if (sos.userId !== me.userId) return c.json({ error: 'Only sender can dismiss' }, 403)
   sos.active = false
-  await c.env.KV.put(`sos_active:${sosId}`, JSON.stringify(sos), { expirationTtl: 300 })
-  // 종료 메시지
-  const msgId = `${Date.now()}_end`
-  await c.env.KV.put(`chat:everyone:${msgId}`, JSON.stringify({
-    msgId, userId: me.userId, userName: me.displayName, avatar: me.avatar,
-    message: `🟢 ${me.displayName}님의 SOS가 종료되었습니다. 안전합니다!`, type: 'system', timestamp: Date.now()
-  }), { expirationTtl: 3600 })
+  await c.env.KV.put(`sos:${sosId}`, JSON.stringify(sos), { expirationTtl: 300 })
   return c.json({ success: true })
 })
 
-// ── SOS 확인 폴링 ─────────────────────────────────────────────
+// ── SOS 폴링 (내 친구가 보낸 활성 SOS만) ────────────────────
 app.get('/api/sos/check', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ error: 'Unauthorized' }, 401)
   const since = Number(c.req.query('since') || '0')
-  const list = await c.env.KV.list({ prefix: `chat:everyone:` })
-  const sos = []
-  for (const key of list.keys) {
-    const tsPart = key.name.split(':')[2]?.split('_')[0]
-    if (tsPart && Number(tsPart) <= since) continue
-    const val = await c.env.KV.get(key.name)
-    if (val) {
-      const m = JSON.parse(val)
-      if (m.timestamp > since && m.type === 'sos' && Array.isArray(m.targets) && m.targets.includes(me.userId)) {
-        // SOS 활성 상태 확인
-        const sosActiveRaw = await c.env.KV.get(`sos_active:${m.sosId}`)
-        const sosActive = sosActiveRaw ? JSON.parse(sosActiveRaw) : { active: true, acknowledgedBy: [] }
-        sos.push({ ...m, active: sosActive.active !== false, acknowledgedBy: sosActive.acknowledgedBy || [] })
-      }
-    }
-  }
+  const list = await c.env.KV.list({ prefix: `sos:sos_` })
+  const filtered = list.keys.filter(k => {
+    const parts = k.name.split('_')
+    const ts = Number(parts[parts.length - 1] || '0')
+    return ts > since
+  })
+  if (!filtered.length) return c.json({ sos: [] })
+  const vals = await Promise.all(filtered.map(k => c.env.KV.get(k.name)))
+  const sos = vals.filter(Boolean).map(v => JSON.parse(v!))
+    .filter(m => m.timestamp > since && Array.isArray(m.targets) && m.targets.includes(me.userId))
   return c.json({ sos })
 })
 
@@ -468,7 +502,7 @@ input{font-size:16px!important}
 .topbar-actions{display:flex;align-items:center;gap:8px}
 .icon-btn{width:36px;height:36px;border-radius:10px;border:none;background:var(--surface);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;transition:all .15s;position:relative;}
 .icon-btn:active{background:var(--surface2)}
-.icon-btn .badge{position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:var(--red);font-size:9px;font-weight:700;color:white;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);}
+.icon-btn .badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;padding:0 3px;background:var(--red);font-size:9px;font-weight:700;color:white;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);}
 .tab-content{flex:1;overflow:hidden;position:relative}
 .tab-pane{position:absolute;inset:0;overflow:hidden;display:none;flex-direction:column}
 .tab-pane.active{display:flex}
@@ -487,32 +521,29 @@ input{font-size:16px!important}
 .map-no-key .icon{font-size:56px;margin-bottom:16px}
 .map-no-key h3{font-size:18px;font-weight:700;color:var(--accent3);margin-bottom:8px}
 .map-no-key p{font-size:13px;color:var(--text2);line-height:1.6;max-width:280px}
-.map-no-key .guide{margin-top:16px;background:var(--surface);border-radius:var(--radius-sm);padding:14px;text-align:left;width:100%;max-width:300px;border:1px solid var(--border2);}
-.map-no-key .guide p{font-size:12px;color:var(--text2);margin-bottom:4px}
 .map-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
 .map-overlay *{pointer-events:auto}
 .map-fab-group{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:8px}
-.map-fab{width:44px;height:44px;border-radius:14px;border:none;background:rgba(18,18,26,0.85);backdrop-filter:blur(12px);border:1px solid var(--border2);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all .15s;}
+.map-fab{width:44px;height:44px;border-radius:14px;border:none;background:rgba(18,18,26,0.88);backdrop-filter:blur(12px);border:1px solid var(--border2);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all .15s;}
 .map-fab:active{transform:scale(0.95)}
-.map-fab.accent{background:rgba(124,58,237,0.85);color:white;border-color:rgba(124,58,237,0.5)}
-.map-fab.toggled-off{background:rgba(80,80,100,0.85);color:var(--text3)}
-.apt-chip{position:absolute;top:14px;left:14px;right:68px;background:rgba(18,18,26,0.9);backdrop-filter:blur(12px);border:1px solid var(--border2);border-radius:14px;padding:8px 12px;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4);}
+.map-fab.accent{background:rgba(124,58,237,0.88);color:white;border-color:rgba(124,58,237,0.5)}
+.apt-chip{position:absolute;top:14px;left:14px;right:68px;background:rgba(18,18,26,0.92);backdrop-filter:blur(12px);border:1px solid var(--border2);border-radius:14px;padding:8px 12px;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4);}
 .apt-chip .label{font-size:11px;color:var(--text2)}
 .apt-chip .name{font-size:13px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .apt-chip .chip-btn{flex-shrink:0;background:var(--accent);color:white;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;border:none;cursor:pointer;}
-.sos-fab{position:absolute;bottom:20px;right:14px;width:64px;height:64px;border-radius:20px;border:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 0 0 0 rgba(239,68,68,0.5);animation:sos-pulse 2s infinite;}
+.sos-fab{position:absolute;bottom:20px;right:14px;width:64px;height:64px;border-radius:20px;border:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;animation:sos-pulse 2s infinite;}
 .sos-fab i{font-size:22px}
 .sos-fab span{font-size:9px;font-weight:800;letter-spacing:1px}
 @keyframes sos-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4),0 8px 24px rgba(239,68,68,0.3)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0),0 8px 24px rgba(239,68,68,0.2)}}
-.member-bar{flex-shrink:0;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:0;overflow-x:auto;padding:10px 14px;min-height:72px;align-items:center;}
+.member-bar{flex-shrink:0;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:0;overflow-x:auto;padding:8px 14px;min-height:66px;align-items:center;}
 .member-bar::-webkit-scrollbar{display:none}
-.member-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:0 8px;}
-.member-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid transparent;position:relative;}
+.member-item{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:0 7px;}
+.member-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid transparent;position:relative;}
 .member-avatar.me{border-color:var(--accent)}
-.member-avatar .online-dot{position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid var(--bg);}
-.member-name{font-size:10px;font-weight:600;color:var(--text2);max-width:52px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member-avatar .online-dot{position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:var(--green);border:2px solid var(--bg);}
+.member-name{font-size:10px;font-weight:600;color:var(--text2);max-width:48px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ── SOS 알림 배너 ────────────────────── */
+/* ── SOS 배너 ────────────────────────── */
 .sos-banner{
   position:fixed;top:0;left:0;right:0;z-index:9990;
   background:linear-gradient(135deg,#dc2626,#991b1b);
@@ -535,30 +566,35 @@ input{font-size:16px!important}
 
 /* ── 채팅 탭 ─────────────────────────── */
 #tab-chat{background:var(--bg)}
-.chat-header{flex-shrink:0;padding:10px 12px 8px;background:var(--bg);border-bottom:1px solid var(--border);}
-.chat-rooms-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.chat-rooms-label{font-size:11px;font-weight:700;color:var(--text3);flex-shrink:0;}
-.chat-room-select{display:flex;gap:6px;overflow-x:auto;flex:1;}
-.chat-room-select::-webkit-scrollbar{display:none}
-.room-chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.chat-header{flex-shrink:0;padding:10px 12px 0;background:var(--bg);border-bottom:1px solid var(--border);}
+.chat-rooms-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;align-items:center;}
+.chat-rooms-scroll::-webkit-scrollbar{display:none}
+.room-chip{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:5px;}
 .room-chip.active{background:var(--accent);border-color:var(--accent);color:white}
-.room-chip .chip-close{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:9px;margin-left:2px;}
-.new-room-btn{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
-.new-room-btn:active{background:var(--surface)}
-.chat-room-name{font-size:14px;font-weight:700;color:var(--text);padding:0 2px;}
-.chat-msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.room-chip .chip-badge{background:var(--red);color:white;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;display:inline-flex;align-items:center;justify-content:center;}
+.new-room-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;align-self:center;}
+.chat-room-info{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 10px;}
+.chat-room-name{font-size:14px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-room-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+/* 채팅방 위치 공유 버튼 */
+.room-loc-toggle{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text2);transition:all .2s;white-space:nowrap;}
+.room-loc-toggle .loc-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);transition:background .2s;}
+.room-loc-toggle.on{background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.4);color:#34d399;}
+.room-loc-toggle.on .loc-dot{background:#10b981;box-shadow:0 0 6px #10b981;}
+.leave-room-btn{width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:var(--text3);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .15s;}
+.leave-room-btn:hover{color:var(--red)}
+.chat-msgs{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;overscroll-behavior:contain;}
 .msg-row{display:flex;align-items:flex-end;gap:6px}
 .msg-row.me{flex-direction:row-reverse}
-.msg-avatar{width:30px;height:30px;border-radius:50%;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface2)}
-.msg-body{max-width:68%;display:flex;flex-direction:column;gap:2px}
+.msg-avatar{width:28px;height:28px;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface2)}
+.msg-body{max-width:70%;display:flex;flex-direction:column;gap:2px}
 .msg-row.me .msg-body{align-items:flex-end}
-.msg-sender{font-size:11px;color:var(--text2);font-weight:500;padding:0 4px}
-.msg-bubble{padding:9px 12px;border-radius:4px 16px 16px 16px;font-size:14px;line-height:1.5;word-break:break-word;background:var(--surface);color:var(--text);}
+.msg-sender{font-size:10px;color:var(--text2);font-weight:500;padding:0 4px}
+.msg-bubble{padding:8px 12px;border-radius:4px 16px 16px 16px;font-size:14px;line-height:1.5;word-break:break-word;background:var(--surface);color:var(--text);}
 .msg-row.me .msg-bubble{background:var(--accent);color:white;border-radius:16px 4px 16px 16px}
-.msg-time{font-size:10px;color:var(--text3);padding:0 4px}
-.msg-system{text-align:center;font-size:11px;color:var(--text3);padding:4px 0}
-.msg-sos .msg-bubble{background:rgba(239,68,68,0.15)!important;border:1px solid rgba(239,68,68,0.4)!important;color:#fca5a5!important;border-radius:12px!important;animation:sos-flash-msg 1s infinite alternate;}
-@keyframes sos-flash-msg{from{background:rgba(239,68,68,0.12)}to{background:rgba(239,68,68,0.22)}}
+.msg-time{font-size:10px;color:var(--text3);padding:0 4px;flex-shrink:0}
+.msg-system{text-align:center;font-size:11px;color:var(--text3);padding:3px 0}
+.msg-sos .msg-bubble{background:rgba(239,68,68,0.15)!important;border:1px solid rgba(239,68,68,0.4)!important;color:#fca5a5!important;border-radius:12px!important;}
 .chat-input-bar{flex-shrink:0;padding:10px 12px;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;}
 .chat-input-bar input{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:10px 16px;color:var(--text);outline:none;font-size:14px;transition:border-color .2s;}
 .chat-input-bar input:focus{border-color:var(--accent)}
@@ -567,10 +603,24 @@ input{font-size:16px!important}
 .send-btn:active{transform:scale(0.92)}
 .loc-share-btn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface);color:var(--accent3);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
 
-/* ── 채팅방 만들기 모달 ─────────────── */
-.create-room-panel{
-  position:absolute;inset:0;background:var(--bg);z-index:20;display:none;flex-direction:column;
-}
+/* ── 채팅방 위치 패널 (바텀시트) ──── */
+.room-loc-panel{position:absolute;bottom:0;left:0;right:0;z-index:40;background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border2);transform:translateY(100%);transition:transform .3s cubic-bezier(0.34,1.56,0.64,1);max-height:55%;}
+.room-loc-panel.show{transform:translateY(0)}
+.room-loc-drag{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:10px auto 0;}
+.room-loc-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;}
+.room-loc-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.room-loc-close{background:none;border:none;color:var(--text2);font-size:13px;cursor:pointer;padding:4px 8px;border-radius:6px;font-weight:600;}
+.room-loc-list{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:200px;padding:0 16px 16px;}
+.room-loc-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border-radius:12px;cursor:pointer;transition:background .15s;}
+.room-loc-item:active{background:var(--bg3)}
+.room-loc-avatar{font-size:22px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border-radius:50%;}
+.room-loc-info{flex:1}
+.room-loc-name{font-size:13px;font-weight:600}
+.room-loc-time{font-size:11px;color:var(--text3);margin-top:2px}
+.room-loc-arrow{color:var(--text3);font-size:11px}
+
+/* ── 채팅방 만들기 패널 ─────────────── */
+.create-room-panel{position:absolute;inset:0;background:var(--bg);z-index:20;display:none;flex-direction:column;}
 .create-room-panel.show{display:flex}
 .create-room-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
 .create-room-header h3{font-size:16px;font-weight:700;flex:1}
@@ -636,7 +686,7 @@ input{font-size:16px!important}
 .add-friend-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:18px;}
 .friend-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
 .friend-item:last-child{border-bottom:none}
-.friend-avatar{width:46px;height:46px;border-radius:50%;font-size:24px;display:flex;align-items:center;justify-content:center;background:var(--surface2);flex-shrink:0;}
+.friend-avatar{width:46px;height:46px;border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center;background:var(--surface2);flex-shrink:0;}
 .friend-info{flex:1;min-width:0}
 .friend-name{font-size:15px;font-weight:700;color:var(--text)}
 .friend-id{font-size:12px;color:var(--text2);margin-top:1px}
@@ -649,8 +699,6 @@ input{font-size:16px!important}
 .f-btn.reject{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
 .f-btn.chat{background:var(--surface2);color:var(--accent3);border:1px solid rgba(124,58,237,0.3)}
 .f-btn:active{transform:scale(0.95)}
-
-/* 친구별 권한 토글 */
 .perm-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;font-size:12px;color:var(--text2);background:var(--bg2);border-radius:8px;margin-bottom:4px;}
 .perm-label{display:flex;align-items:center;gap:6px;font-weight:500;}
 .toggle-sw{width:44px;height:24px;border-radius:12px;background:var(--surface2);border:1px solid var(--border2);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
@@ -659,7 +707,6 @@ input{font-size:16px!important}
 .toggle-sw.on::after{left:23px;}
 .perm-expand{padding:8px 4px 4px;border-top:1px solid var(--border);margin-top:6px;display:none;}
 .perm-expand.show{display:block;}
-
 .req-badge{background:var(--red);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;}
 .section-label{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px}
 .empty-state{text-align:center;padding:32px 0;color:var(--text3)}
@@ -667,7 +714,7 @@ input{font-size:16px!important}
 .empty-state p{font-size:13px}
 
 /* ── 토스트 ───────────────────────────── */
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);z-index:9999;background:var(--surface);color:var(--text);padding:11px 20px;border-radius:20px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.5);border:1px solid var(--border2);transition:transform .3s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;max-width:90vw;display:flex;align-items:center;gap:8px;}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);z-index:9999;background:var(--surface);color:var(--text);padding:11px 20px;border-radius:20px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.5);border:1px solid var(--border2);transition:transform .3s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;max-width:90vw;}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.success{border-color:rgba(16,185,129,0.4);color:#34d399}
 .toast.error{border-color:rgba(239,68,68,0.4);color:#fca5a5}
@@ -678,19 +725,14 @@ input{font-size:16px!important}
 .modal-overlay.show{display:flex}
 .modal-sheet{width:100%;background:var(--surface);border-radius:24px 24px 0 0;padding:24px;border-top:1px solid var(--border2);animation:sheetUp .25s ease-out;}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-@keyframes bubblePop{0%{transform:scale(0.4) translateY(8px);opacity:0}70%{transform:scale(1.08) translateY(-2px)}100%{transform:scale(1) translateY(0);opacity:1}}
-@keyframes bubbleFadeOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.8) translateY(-6px)}}
 .modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
-.modal-title{font-size:18px;font-weight:800;margin-bottom:6px}
-.modal-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
-
 /* 지도 말풍선 */
-.msg-bubble-map{position:relative;background:#7c3aed;color:white;padding:7px 11px;border-radius:14px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.45);max-width:180px;word-break:break-all;white-space:normal;line-height:1.4;animation:bubblePop .25s cubic-bezier(.34,1.56,.64,1);}
+.msg-bubble-map{position:relative;background:#7c3aed;color:white;padding:6px 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.45);max-width:160px;word-break:break-all;white-space:normal;line-height:1.3;}
 </style>
 </head>
 <body>
 
-<!-- SOS 알림 배너 (화면 상단 고정) -->
+<!-- SOS 배너 -->
 <div class="sos-banner" id="sos-banner">
   <div class="sos-banner-title"><i class="fas fa-exclamation-triangle"></i><span id="sos-banner-title-text">SOS 긴급 알림</span></div>
   <div class="sos-banner-msg" id="sos-banner-msg"></div>
@@ -700,7 +742,7 @@ input{font-size:16px!important}
   </div>
 </div>
 
-<!-- ══ AUTH ══════════════════════════════════════════════ -->
+<!-- ══ AUTH ══ -->
 <div id="screen-auth">
   <div class="auth-glow"></div>
   <div class="auth-logo">📍</div>
@@ -727,7 +769,7 @@ input{font-size:16px!important}
   </div>
 </div>
 
-<!-- ══ MAIN APP ══════════════════════════════════════════ -->
+<!-- ══ MAIN APP ══ -->
 <div id="screen-main">
   <div class="topbar">
     <div class="topbar-logo">
@@ -735,32 +777,29 @@ input{font-size:16px!important}
       <span class="topbar-logo-text">모여봐</span>
     </div>
     <div class="topbar-actions">
-      <button class="icon-btn" id="loc-share-toggle" onclick="toggleMyLocShare()" title="내 위치 공유 켜기/끄기">
+      <button class="icon-btn" id="loc-share-toggle" onclick="toggleGlobalLoc()" title="내 위치 공유">
         <i class="fas fa-broadcast-tower"></i>
-        <span class="badge" id="loc-share-badge" style="display:none;background:var(--green)">ON</span>
+        <span class="badge" id="loc-share-badge" style="display:none;background:var(--green);font-size:8px">ON</span>
       </button>
-      <button class="icon-btn" onclick="switchTab('friends')" id="friend-req-btn" title="친구 요청">
+      <button class="icon-btn" onclick="switchTab('friends')" title="친구 요청">
         <i class="fas fa-user-friends"></i>
         <span class="badge" id="req-badge" style="display:none"></span>
       </button>
-      <button class="icon-btn" onclick="showProfileModal()" title="내 프로필">
+      <button class="icon-btn" onclick="showProfileModal()" title="프로필">
         <span id="my-avatar-btn" style="font-size:18px">🐻</span>
       </button>
     </div>
   </div>
 
   <div class="tab-content">
-    <!-- 🗺️ 지도 -->
+    <!-- 지도 -->
     <div class="tab-pane active" id="tab-map">
       <div style="flex:1;position:relative">
         <div id="kakaoMap"></div>
         <div class="map-overlay">
           <div class="apt-chip" id="apt-chip">
             <span style="font-size:16px">📌</span>
-            <div style="flex:1;min-width:0">
-              <div class="label">약속장소</div>
-              <div class="name" id="apt-chip-name"></div>
-            </div>
+            <div style="flex:1;min-width:0"><div class="label">약속장소</div><div class="name" id="apt-chip-name"></div></div>
             <button class="chip-btn" onclick="goToApptTab()">길찾기</button>
           </div>
           <div class="map-fab-group">
@@ -775,18 +814,18 @@ input{font-size:16px!important}
       </div>
     </div>
 
-    <!-- 💬 채팅 -->
+    <!-- 채팅 -->
     <div class="tab-pane" id="tab-chat">
       <!-- 채팅방 만들기 패널 -->
       <div class="create-room-panel" id="create-room-panel">
         <div class="create-room-header">
           <button onclick="closeCreateRoom()" style="background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;padding:4px"><i class="fas fa-arrow-left"></i></button>
-          <h3>채팅방 만들기</h3>
+          <h3>새 채팅방</h3>
         </div>
         <div class="create-room-body">
-          <div class="field"><label>채팅방 이름</label><input id="new-room-name" type="text" placeholder="예) 여름 여행 계획" maxlength="20"/></div>
+          <div class="field"><label>채팅방 이름 (그룹용)</label><input id="new-room-name" type="text" placeholder="예) 여름 여행 계획" maxlength="20"/></div>
           <div>
-            <div class="section-label">참여할 친구 선택</div>
+            <div class="section-label">친구 선택 (1명 = 1:1 채팅)</div>
             <div class="member-select-list" id="member-select-list"></div>
           </div>
         </div>
@@ -796,24 +835,37 @@ input{font-size:16px!important}
       </div>
 
       <div class="chat-header">
-        <div class="chat-rooms-row">
-          <span class="chat-rooms-label">채팅방</span>
-          <div class="chat-room-select" id="chat-room-select">
-            <div class="room-chip active" data-room="everyone">🌍 전체</div>
-          </div>
-          <button class="new-room-btn" onclick="openCreateRoom()" title="채팅방 만들기"><i class="fas fa-plus"></i></button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="chat-rooms-scroll" id="chat-room-select"></div>
+          <button class="new-room-btn" onclick="openCreateRoom()" title="새 채팅방"><i class="fas fa-plus"></i></button>
         </div>
-        <div class="chat-room-name" id="chat-room-name">🌍 전체 채팅</div>
+        <div class="chat-room-info">
+          <div class="chat-room-name" id="chat-room-name">채팅방을 선택하세요</div>
+          <div class="chat-room-actions">
+            <button class="room-loc-toggle" id="room-loc-btn" onclick="toggleRoomLocShare()" style="display:none">
+              <div class="loc-dot"></div><span id="room-loc-btn-text">위치 공유</span>
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="chat-msgs" id="chat-msgs"></div>
+      <div class="chat-msgs" id="chat-msgs"><div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div></div>
       <div class="chat-input-bar">
-        <button class="loc-share-btn" onclick="shareMyLocInChat()" title="위치 공유"><i class="fas fa-map-marker-alt"></i></button>
-        <input id="chat-input" type="text" placeholder="메시지 입력..." maxlength="200"/>
+        <button class="loc-share-btn" onclick="shareMyLocInChat()" title="내 위치 공유"><i class="fas fa-map-marker-alt"></i></button>
+        <input id="chat-input" type="text" placeholder="메시지 입력..." maxlength="200" disabled/>
         <button class="send-btn" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+      </div>
+      <!-- 채팅방 위치 공유 바텀시트 패널 -->
+      <div class="room-loc-panel" id="room-loc-panel">
+        <div class="room-loc-drag"></div>
+        <div class="room-loc-header">
+          <div class="room-loc-title">📍 채팅방 멤버 위치</div>
+          <button class="room-loc-close" onclick="closeRoomLocPanel()">닫기</button>
+        </div>
+        <div class="room-loc-list" id="room-loc-list"></div>
       </div>
     </div>
 
-    <!-- 📌 약속 -->
+    <!-- 약속 -->
     <div class="tab-pane" id="tab-appt">
       <div class="appt-scroll">
         <div class="current-apt-card" id="cur-apt-card">
@@ -853,13 +905,13 @@ input{font-size:16px!important}
             <div class="card-title" style="margin-bottom:0"><i class="fas fa-train"></i> 대중교통 길찾기</div>
             <button onclick="closeTransit()" style="background:none;border:none;color:var(--text2);font-size:13px;cursor:pointer">닫기</button>
           </div>
-          <div class="spinner" id="transit-spinner"></div>
+          <div class="spinner" id="transit-spinner" style="display:none"></div>
           <div id="transit-results"></div>
         </div>
       </div>
     </div>
 
-    <!-- 👥 친구 -->
+    <!-- 친구 -->
     <div class="tab-pane" id="tab-friends">
       <div class="friends-scroll">
         <div class="add-friend-card">
@@ -875,11 +927,7 @@ input{font-size:16px!important}
         </div>
         <div>
           <div class="section-label">친구 목록</div>
-          <div class="card">
-            <div id="friend-list">
-              <div class="empty-state"><div class="e-icon">👥</div><p>아직 친구가 없어요</p></div>
-            </div>
-          </div>
+          <div class="card"><div id="friend-list"><div class="empty-state"><div class="e-icon">👥</div><p>아직 친구가 없어요</p></div></div></div>
         </div>
       </div>
     </div>
@@ -887,7 +935,7 @@ input{font-size:16px!important}
 
   <div class="tabbar">
     <button class="tab-btn active" id="tbtn-map" onclick="switchTab('map')"><i class="fas fa-map-marked-alt"></i><span>지도</span></button>
-    <button class="tab-btn" id="tbtn-chat" onclick="switchTab('chat')"><i class="fas fa-comment-dots"></i><span>채팅</span><span class="tbadge" id="chat-tbadge">N</span></button>
+    <button class="tab-btn" id="tbtn-chat" onclick="switchTab('chat')"><i class="fas fa-comment-dots"></i><span>채팅</span><span class="tbadge" id="chat-tbadge"></span></button>
     <button class="tab-btn" id="tbtn-appt" onclick="switchTab('appt')"><i class="fas fa-map-pin"></i><span>약속</span></button>
     <button class="tab-btn" id="tbtn-friends" onclick="switchTab('friends')"><i class="fas fa-user-friends"></i><span>친구</span><span class="tbadge" id="friends-tbadge"></span></button>
   </div>
@@ -899,15 +947,12 @@ input{font-size:16px!important}
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
       <div id="profile-avatar" style="font-size:44px;width:64px;height:64px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border-radius:50%"></div>
-      <div>
-        <div id="profile-name" style="font-size:20px;font-weight:800"></div>
-        <div id="profile-id" style="font-size:13px;color:var(--text2);margin-top:2px"></div>
-      </div>
+      <div><div id="profile-name" style="font-size:20px;font-weight:800"></div><div id="profile-id" style="font-size:13px;color:var(--text2);margin-top:2px"></div></div>
     </div>
     <div style="margin-bottom:16px">
-      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">내 위치 공유 전체 설정</div>
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">위치 공유 전체 설정</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-radius:10px;">
-        <span style="font-size:14px;color:var(--text)"><i class="fas fa-broadcast-tower" style="color:var(--accent3);margin-right:8px"></i>위치 공유 중</span>
+        <span style="font-size:14px;color:var(--text)"><i class="fas fa-broadcast-tower" style="color:var(--accent3);margin-right:8px"></i>내 위치 공유 중</span>
         <div class="toggle-sw" id="global-loc-toggle" onclick="toggleGlobalLoc()"></div>
       </div>
     </div>
@@ -915,125 +960,84 @@ input{font-size:16px!important}
   </div>
 </div>
 
-<!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services"></script>
 <script>
-// ════════════════════════════════════════════════════════════
-//  SERVICE WORKER 등록 (백그라운드 위치 추적)
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+//  SERVICE WORKER 등록
+// ════════════════════════════════════════════════════════
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(()=>{})
 }
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  STATE
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 const S = {
-  token: null, userId: null, displayName: null, avatar: null,
-  lat: null, lng: null,
-  map: null, myMarker: null, friendMarkers: {},
-  chatBubbleOverlays: {}, chatBubbleTimers: {},
-  aptMarker: null, appointment: null,
-  friends: [], pendingReqs: [],
-  rooms: [], // 채팅방 목록
-  currentRoom: 'everyone', currentRoomName: '🌍 전체 채팅',
-  lastChatTs: 0, lastSOSTs: 0,
-  selectedPlace: null, midpointData: null,
-  pollTimer: null, locTimer: null, bgLocTimer: null,
-  unreadChat: 0,
-  activeSOS: null, // { sosId, fromUserId, fromName, isMe }
-  globalLocShare: true, // 전체 위치 공유 켜기/끄기
-  MCOLORS: ['#7c3aed','#ec4899','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'],
+  token:null, userId:null, displayName:null, avatar:null,
+  lat:null, lng:null,
+  map:null, myMarker:null, friendMarkers:{},
+  chatBubbleOverlays:{}, chatBubbleTimers:{},
+  aptMarker:null, appointment:null,
+  friends:[], pendingReqs:[],
+  rooms:[], currentRoom:null, currentRoomName:'',
+  currentRoomData:null,
+  lastChatTs:0, lastSOSTs:0,
+  selectedPlace:null, midpointData:null,
+  pollTimer:null, locTimer:null,
+  unreadChat:0, roomUnread:{},
+  activeSOS:null,
+  globalLocShare:true,
+  locPanelOpen:false,
+  MCOLORS:['#7c3aed','#ec4899','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'],
+  // 성능: 마지막 폴링 결과 해시 (변경 없으면 UI 갱신 스킵)
+  _friendsHash:'', _roomsHash:'', _reqHash:'',
 }
-const AVATARS = ['🐻','🦊','🐱','🐶','🐸','🐧','🐨','🦁','🐯','🐺','🦄','🐼']
+const AVATARS=['🐻','🦊','🐱','🐶','🐸','🐧','🐨','🦁','🐯','🐺','🦄','🐼']
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  AUTH
-// ════════════════════════════════════════════════════════════
-function initAuth() {
-  const saved = localStorage.getItem('meetup_auth')
-  if (saved) {
-    try {
-      const d = JSON.parse(saved)
-      S.token=d.token; S.userId=d.userId; S.displayName=d.displayName; S.avatar=d.avatar
-      S.globalLocShare = localStorage.getItem('meetup_loc_share') !== 'false'
-      startApp(); return
-    } catch(e) { localStorage.removeItem('meetup_auth') }
-  }
+// ════════════════════════════════════════════════════════
+function initAuth(){
+  const saved=localStorage.getItem('meetup_auth')
+  if(saved){try{const d=JSON.parse(saved);S.token=d.token;S.userId=d.userId;S.displayName=d.displayName;S.avatar=d.avatar;S.globalLocShare=localStorage.getItem('meetup_loc_share')!=='false';startApp();return}catch(e){localStorage.removeItem('meetup_auth')}}
   renderAvatarGrid()
 }
-function renderAvatarGrid() {
-  let sel = AVATARS[0]
-  document.getElementById('avatar-grid').innerHTML = AVATARS.map((a,i) =>
-    '<button class="avatar-btn'+(i===0?' selected':'')+'" onclick="selectAvatar(\''+a+'\',this)">'+a+'</button>'
-  ).join('')
-  window._selAvatar = sel
+function renderAvatarGrid(){
+  window._selAvatar=AVATARS[0]
+  document.getElementById('avatar-grid').innerHTML=AVATARS.map((a,i)=>'<button class="avatar-btn'+(i===0?' selected':'')+'" onclick="selectAvatar(\''+a+'\',this)">'+a+'</button>').join('')
 }
-function selectAvatar(a, el) {
-  window._selAvatar = a
-  document.querySelectorAll('.avatar-btn').forEach(b=>b.classList.remove('selected'))
-  el.classList.add('selected')
-}
-function switchAuthTab(tab) {
-  document.getElementById('form-login').style.display = tab==='login'?'block':'none'
-  document.getElementById('form-register').style.display = tab==='register'?'block':'none'
-  document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='register')))
-  document.getElementById('auth-error').style.display='none'
-}
-function showAuthError(msg) {
-  const el=document.getElementById('auth-error'); el.textContent=msg; el.style.display='block'
-}
-async function doLogin() {
+function selectAvatar(a,el){window._selAvatar=a;document.querySelectorAll('.avatar-btn').forEach(b=>b.classList.remove('selected'));el.classList.add('selected')}
+function switchAuthTab(tab){document.getElementById('form-login').style.display=tab==='login'?'block':'none';document.getElementById('form-register').style.display=tab==='register'?'block':'none';document.querySelectorAll('.auth-tab').forEach((b,i)=>b.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='register')));document.getElementById('auth-error').style.display='none'}
+function showAuthError(msg){const el=document.getElementById('auth-error');el.textContent=msg;el.style.display='block'}
+async function doLogin(){
   const userId=document.getElementById('login-id').value.trim()
   const password=document.getElementById('login-pw').value
   if(!userId||!password){showAuthError('아이디와 비밀번호를 입력해주세요');return}
-  try {
-    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password})})
-    const d=await r.json()
-    if(!r.ok){showAuthError(d.error||'로그인 실패');return}
-    saveAuth(d); startApp()
-  } catch(e){showAuthError('서버 연결 실패 - KV 스토리지를 설정해주세요')}
+  try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password})});const d=await r.json();if(!r.ok){showAuthError(d.error||'로그인 실패');return}saveAuth(d);startApp()}catch(e){showAuthError('서버 연결 실패')}
 }
-async function doRegister() {
+async function doRegister(){
   const userId=document.getElementById('reg-id').value.trim()
   const password=document.getElementById('reg-pw').value
   const displayName=document.getElementById('reg-name').value.trim()
   const avatar=window._selAvatar||AVATARS[0]
   if(!userId||!password||!displayName){showAuthError('모든 항목을 입력해주세요');return}
-  try {
-    const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password,displayName,avatar})})
-    const d=await r.json()
-    if(!r.ok){showAuthError(d.error||'회원가입 실패');return}
-    saveAuth(d); startApp()
-  } catch(e){showAuthError('서버 연결 실패 - KV 스토리지를 설정해주세요')}
+  try{const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password,displayName,avatar})});const d=await r.json();if(!r.ok){showAuthError(d.error||'회원가입 실패');return}saveAuth(d);startApp()}catch(e){showAuthError('서버 연결 실패')}
 }
-function saveAuth(d) {
-  S.token=d.token; S.userId=d.userId; S.displayName=d.displayName; S.avatar=d.avatar
-  localStorage.setItem('meetup_auth',JSON.stringify({token:d.token,userId:d.userId,displayName:d.displayName,avatar:d.avatar}))
-}
-function doLogout() {
+function saveAuth(d){S.token=d.token;S.userId=d.userId;S.displayName=d.displayName;S.avatar=d.avatar;localStorage.setItem('meetup_auth',JSON.stringify({token:d.token,userId:d.userId,displayName:d.displayName,avatar:d.avatar}))}
+function doLogout(){
   if(!confirm('로그아웃 하시겠습니까?'))return
-  clearInterval(S.pollTimer); clearInterval(S.locTimer); clearInterval(S.bgLocTimer)
-  // SW에 로그아웃 알림 → 백그라운드 위치 전송 중지
-  if('serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then(reg => {
-      if(reg.active) reg.active.postMessage({ type: 'LOGOUT' })
-    }).catch(()=>{})
-  }
-  S.token=null; S.userId=null
-  localStorage.removeItem('meetup_auth')
-  location.reload()
+  clearInterval(S.pollTimer);clearInterval(S.locTimer)
+  if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>{if(r.active)r.active.postMessage({type:'LOGOUT'})}).catch(()=>{})
+  localStorage.removeItem('meetup_auth');location.reload()
 }
-function api(path, opts={}) {
-  return fetch(path, { ...opts, headers: { 'Authorization': 'Bearer '+S.token, 'Content-Type':'application/json', ...(opts.headers||{}) } })
-}
+function api(path,opts={}){return fetch(path,{...opts,headers:{'Authorization':'Bearer '+S.token,'Content-Type':'application/json',...(opts.headers||{})}})}
 
-// ════════════════════════════════════════════════════════════
-//  앱 시작
-// ════════════════════════════════════════════════════════════
-function startApp() {
+// ════════════════════════════════════════════════════════
+//  앱 시작 & 폴링 (성능 최적화)
+// ════════════════════════════════════════════════════════
+function startApp(){
   document.getElementById('screen-auth').style.display='none'
   document.getElementById('screen-main').classList.add('visible')
   document.getElementById('my-avatar-btn').textContent=S.avatar||'🐻'
@@ -1043,526 +1047,447 @@ function startApp() {
   updateLocShareUI()
   initMap()
   getLocation()
-  fetchFriends()
-  fetchFriendRequests()
-  fetchAppointment()
-  fetchRooms()
-  fetchChat()
-  registerSWLocTracking()
-  // 위치 업로드: 30초마다 (앱 포커스 시)
-  S.locTimer = setInterval(()=>{ if(S.globalLocShare) { getLocation(); uploadLocation() } }, 30000)
-  // 폴링: 3초 기본, 각 기능 분산
-  let pollCycle = 0
-  S.pollTimer = setInterval(()=>{
-    pollCycle++
-    fetchChat()                                           // 3초마다
-    if(pollCycle % 3 === 0) fetchFriends()               // 9초마다
-    if(pollCycle % 4 === 0) fetchSOSCheck()              // 12초마다
-    if(pollCycle % 5 === 0) fetchFriendRequests()        // 15초마다
-    if(pollCycle % 7 === 0) fetchRooms()                 // 21초마다
-    if(pollCycle >= 1000) pollCycle = 0                  // 오버플로우 방지
-  }, 3000)
+  Promise.all([fetchFriends(), fetchFriendRequests(), fetchRooms()])
+  if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>{if(r.active)r.active.postMessage({type:'INIT_LOC',token:S.token,userId:S.userId})}).catch(()=>{})
+  // 위치 업로드: 30초 (전역 공유 ON일 때만)
+  S.locTimer=setInterval(()=>{if(S.globalLocShare)uploadLocation()},30000)
+  // 폴링: 사이클 기반으로 API 호출 분산
+  // cycle=0: chat(현재방)
+  // cycle%3: friends(9초)
+  // cycle%5: SOS(15초)
+  // cycle%7: friendReqs(21초)
+  // cycle%10: rooms(30초)
+  // locPanel: panel 열린 경우만 cycle%2(6초)
+  let cycle=0
+  S.pollTimer=setInterval(()=>{
+    cycle=(cycle+1)%120
+    if(S.currentRoom)fetchChat()
+    if(cycle%3===0)fetchFriends()
+    if(cycle%5===0)fetchSOSCheck()
+    if(cycle%7===0)fetchFriendRequests()
+    if(cycle%10===0)fetchRooms()
+    if(S.locPanelOpen&&cycle%2===0)fetchRoomLocations()
+  },3000)
 }
 
-// ── 전체/전송 위치 공유 토글 ──────────────────────────────────
-function toggleGlobalLoc() {
-  S.globalLocShare = !S.globalLocShare
-  localStorage.setItem('meetup_loc_share', S.globalLocShare)
+function toggleGlobalLoc(){
+  S.globalLocShare=!S.globalLocShare
+  localStorage.setItem('meetup_loc_share',S.globalLocShare)
   updateLocShareUI()
-  showToast(S.globalLocShare ? '📡 위치 공유 켜짐' : '🔕 위치 공유 꺼짐', S.globalLocShare?'success':'info')
+  showToast(S.globalLocShare?'📡 위치 공유 켜짐':'🔕 위치 공유 꺼짐',S.globalLocShare?'success':'info')
+  if(S.globalLocShare)uploadLocation()
 }
-function toggleMyLocShare() { toggleGlobalLoc() }
-function updateLocShareUI() {
-  const toggle = document.getElementById('global-loc-toggle')
-  const badge = document.getElementById('loc-share-badge')
-  if(toggle) toggle.classList.toggle('on', S.globalLocShare)
-  if(badge) { badge.style.display = S.globalLocShare ? 'flex' : 'none' }
-}
+function updateLocShareUI(){const t=document.getElementById('global-loc-toggle');const b=document.getElementById('loc-share-badge');if(t)t.classList.toggle('on',S.globalLocShare);if(b)b.style.display=S.globalLocShare?'flex':'none'}
 
-// ── Service Worker 백그라운드 위치 추적 등록 ─────────────────
-function registerSWLocTracking() {
-  if(!('serviceWorker' in navigator)) return
-  // SW가 활성화될 때까지 대기 후 메시지 전송
-  navigator.serviceWorker.ready.then(reg => {
-    if(reg.active) {
-      reg.active.postMessage({ type: 'INIT_LOC', token: S.token, userId: S.userId })
-    }
-  }).catch(()=>{})
-}
-function notifySWLocation(lat, lng, accuracy) {
-  if(!('serviceWorker' in navigator)) return
-  navigator.serviceWorker.ready.then(reg => {
-    if(reg.active) reg.active.postMessage({ type: 'UPDATE_LOC', lat, lng, accuracy })
-  }).catch(()=>{})
-}
-
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  위치
-// ════════════════════════════════════════════════════════════
-function getLocation() {
+// ════════════════════════════════════════════════════════
+function getLocation(){
   if(!navigator.geolocation)return
   navigator.geolocation.getCurrentPosition(pos=>{
-    S.lat=pos.coords.latitude; S.lng=pos.coords.longitude
-    updateMyMarker(S.lat, S.lng)
-    uploadLocation()
-  },{enableHighAccuracy:true,timeout:8000,maximumAge:15000})
+    S.lat=pos.coords.latitude;S.lng=pos.coords.longitude
+    updateMyMarker(S.lat,S.lng)
+    if(S.globalLocShare)uploadLocation()
+  },{enableHighAccuracy:true,timeout:8000,maximumAge:20000})
 }
-async function uploadLocation() {
+async function uploadLocation(){
   if(!S.token||!S.lat||!S.globalLocShare)return
   try{
     await api('/api/location',{method:'POST',body:JSON.stringify({lat:S.lat,lng:S.lng,accuracy:20})})
-    // SW에 위치 데이터 전달 (앱이 꺼진 상태에서의 재전송용 캐시)
-    notifySWLocation(S.lat, S.lng, 20)
+    if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>{if(r.active)r.active.postMessage({type:'UPDATE_LOC',lat:S.lat,lng:S.lng,accuracy:20})}).catch(()=>{})
   }catch(e){}
 }
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  지도
-// ════════════════════════════════════════════════════════════
-function initMap() {
+// ════════════════════════════════════════════════════════
+function initMap(){
   const el=document.getElementById('kakaoMap')
   if(typeof kakao==='undefined'||!kakao.maps){
-    el.innerHTML='<div class="map-no-key"><div class="icon">🗺️</div><h3>카카오맵 API 키 필요</h3><p>카카오 개발자 콘솔에서 JavaScript 앱 키를 발급받아 Cloudflare 시크릿에 등록해주세요</p><div class="guide"><p style="font-size:13px;font-weight:700;color:var(--accent3);margin-bottom:8px">✅ 지도 외 모든 기능 정상 동작</p><p>💬 채팅 · 👥 친구 · 📌 약속 · 🆘 SOS</p></div></div>'
+    el.innerHTML='<div class="map-no-key"><div class="icon">🗺️</div><h3>카카오맵 API 키 필요</h3><p>카카오 개발자 콘솔에서 JavaScript 앱 키를 발급받아 Cloudflare 시크릿에 등록해주세요</p></div>'
     return
   }
-  const center=new kakao.maps.LatLng(37.5665,126.9780)
-  S.map=new kakao.maps.Map(el,{center,level:6})
-  kakao.maps.event.addListener(S.map,'click',e=>{
-    const l=e.latLng
-    S.selectedPlace={name:'지도에서 선택한 위치',lat:l.getLat(),lng:l.getLng(),address:''}
-    showSelectedPlace()
-  })
+  S.map=new kakao.maps.Map(el,{center:new kakao.maps.LatLng(37.5665,126.9780),level:6})
+  kakao.maps.event.addListener(S.map,'click',e=>{const l=e.latLng;S.selectedPlace={name:'지도에서 선택한 위치',lat:l.getLat(),lng:l.getLng(),address:''};showSelectedPlace()})
 }
-
-function getColor(uid) { let h=0; for(let i=0;i<uid.length;i++)h=(h*31+uid.charCodeAt(i))%S.MCOLORS.length; return S.MCOLORS[h] }
-
-function makeOverlayContent(avatar, name, color, isMe) {
-  return '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">'
-    +'<div style="width:46px;height:46px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid '+(isMe?'#a855f7':'white')+';box-shadow:0 4px 14px rgba(0,0,0,0.5);">'+avatar+'</div>'
-    +'<div style="background:rgba(10,10,15,0.85);color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;backdrop-filter:blur(4px);">'+name+'</div>'
-    +'</div>'
+function getColor(uid){let h=0;for(let i=0;i<uid.length;i++)h=(h*31+uid.charCodeAt(i))%S.MCOLORS.length;return S.MCOLORS[h]}
+function makeOverlayEl(avatar,name,color,isMe){
+  const d=document.createElement('div');d.style.cssText='display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer'
+  d.innerHTML='<div style="width:44px;height:44px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid '+(isMe?'#a855f7':'white')+';box-shadow:0 4px 14px rgba(0,0,0,0.5);">'+avatar+'</div><div style="background:rgba(10,10,15,0.85);color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:7px;white-space:nowrap;backdrop-filter:blur(4px);">'+name+'</div>'
+  return d
 }
-function makeOverlayEl(html) {
-  const el=document.createElement('div'); el.innerHTML=html; return el
-}
-function updateMyMarker(lat, lng) {
+function updateMyMarker(lat,lng){
   if(!S.map||typeof kakao==='undefined')return
   const pos=new kakao.maps.LatLng(lat,lng)
-  if(S.myMarker){ S.myMarker.setPosition(pos) }
-  else {
-    const content=makeOverlayEl(makeOverlayContent(S.avatar||'🐻',S.displayName||'나','#7c3aed',true))
-    S.myMarker=new kakao.maps.CustomOverlay({position:pos,content,yAnchor:1.3})
-    S.myMarker.setMap(S.map)
-  }
+  if(S.myMarker){S.myMarker.setPosition(pos)}
+  else{S.myMarker=new kakao.maps.CustomOverlay({position:pos,content:makeOverlayEl(S.avatar||'🐻',S.displayName||'나','#7c3aed',true),yAnchor:1.3});S.myMarker.setMap(S.map)}
 }
-function updateFriendMarker(f) {
+function updateFriendMarker(f){
   if(!S.map||typeof kakao==='undefined')return
-  if(!f.location || !f.iViewFriend) {
-    if(S.friendMarkers[f.userId]) { S.friendMarkers[f.userId].setMap(null); delete S.friendMarkers[f.userId] }
-    return
-  }
+  if(!f.location||!f.iViewFriend){if(S.friendMarkers[f.userId]){S.friendMarkers[f.userId].setMap(null);delete S.friendMarkers[f.userId]}return}
   const pos=new kakao.maps.LatLng(f.location.lat,f.location.lng)
-  const color=getColor(f.userId)
-  if(S.friendMarkers[f.userId]){ S.friendMarkers[f.userId].setPosition(pos) }
-  else {
-    const content=makeOverlayEl(makeOverlayContent(f.avatar||'🐻',f.displayName,color,false))
-    S.friendMarkers[f.userId]=new kakao.maps.CustomOverlay({position:pos,content,yAnchor:1.3})
-    S.friendMarkers[f.userId].setMap(S.map)
-  }
+  if(S.friendMarkers[f.userId]){S.friendMarkers[f.userId].setPosition(pos)}
+  else{const ov=new kakao.maps.CustomOverlay({position:pos,content:makeOverlayEl(f.avatar||'🐻',f.displayName,getColor(f.userId),false),yAnchor:1.3});ov.setMap(S.map);S.friendMarkers[f.userId]=ov}
 }
-function showMapBubble(uid, text, lat, lng) {
+function showMapBubble(uid,text,lat,lng){
   if(!S.map||typeof kakao==='undefined')return
-  const maxLen=28; const display=text.length>maxLen?text.slice(0,maxLen)+'…':text
-  const color=uid===S.userId?'#7c3aed':getColor(uid)
-  const el=document.createElement('div')
-  el.className='msg-bubble-map'; el.style.background=color; el.textContent=display
-  if(S.chatBubbleOverlays[uid]){ S.chatBubbleOverlays[uid].setMap(null) }
+  const el=document.createElement('div');el.className='msg-bubble-map';el.style.background=uid===S.userId?'#7c3aed':getColor(uid);el.textContent=text.length>26?text.slice(0,26)+'…':text
+  if(S.chatBubbleOverlays[uid])S.chatBubbleOverlays[uid].setMap(null)
   clearTimeout(S.chatBubbleTimers[uid])
-  const overlay=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,yAnchor:2.2,zIndex:10})
-  overlay.setMap(S.map); S.chatBubbleOverlays[uid]=overlay
-  S.chatBubbleTimers[uid]=setTimeout(()=>{ overlay.setMap(null); delete S.chatBubbleOverlays[uid] },5000)
+  const ov=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,yAnchor:2.2,zIndex:10});ov.setMap(S.map);S.chatBubbleOverlays[uid]=ov
+  S.chatBubbleTimers[uid]=setTimeout(()=>{ov.setMap(null);delete S.chatBubbleOverlays[uid]},5000)
 }
-function centerMe() { if(S.map&&S.lat)S.map.setCenter(new kakao.maps.LatLng(S.lat,S.lng)) }
-function centerAll() {
+function centerMe(){if(S.map&&S.lat)S.map.setCenter(new kakao.maps.LatLng(S.lat,S.lng))}
+function centerAll(){
   if(!S.map||typeof kakao==='undefined')return
-  const bounds=new kakao.maps.LatLngBounds()
-  if(S.lat)bounds.extend(new kakao.maps.LatLng(S.lat,S.lng))
-  for(const k in S.friendMarkers){ const pos=S.friendMarkers[k].getPosition(); bounds.extend(pos) }
-  try{ S.map.setBounds(bounds) }catch(e){}
+  const b=new kakao.maps.LatLngBounds()
+  if(S.lat)b.extend(new kakao.maps.LatLng(S.lat,S.lng))
+  Object.values(S.friendMarkers).forEach(m=>b.extend(m.getPosition()))
+  try{S.map.setBounds(b)}catch(e){}
 }
 
-// ════════════════════════════════════════════════════════════
-//  멤버바 렌더
-// ════════════════════════════════════════════════════════════
-function renderMemberBar() {
+// ════════════════════════════════════════════════════════
+//  멤버바
+// ════════════════════════════════════════════════════════
+function renderMemberBar(){
   const bar=document.getElementById('member-bar')
-  if(!S.friends.length){ bar.innerHTML='<div style="color:var(--text3);font-size:12px;width:100%;text-align:center">친구를 추가하면 여기에 표시됩니다</div>'; return }
-  const items=['<div class="member-item" onclick="centerMe()"><div class="member-avatar me">'+esc(S.avatar||'🐻')+'<div class="online-dot"></div></div><div class="member-name">나</div></div>']
+  if(!S.friends.length){bar.innerHTML='<div style="color:var(--text3);font-size:12px;width:100%;text-align:center">친구를 추가하면 여기에 표시됩니다</div>';return}
+  let html='<div class="member-item" onclick="centerMe()"><div class="member-avatar me">'+esc(S.avatar||'🐻')+'<div class="online-dot"></div></div><div class="member-name">나</div></div>'
   for(const f of S.friends){
-    const hasLoc=!!f.location; const ago=hasLoc?getAgo(f.location.updatedAt):null
-    const isOnline=hasLoc&&ago<120000
-    items.push('<div class="member-item" onclick="focusFriend(\''+esc(f.userId)+'\')" data-uid="'+esc(f.userId)+'"><div class="member-avatar" style="border-color:'+(isOnline?getColor(f.userId):'transparent')+'">'+esc(f.avatar||'🐻')+(isOnline?'<div class="online-dot"></div>':'')+'</div><div class="member-name">'+esc(f.displayName)+'</div></div>')
+    const isOnline=f.location&&(Date.now()-f.location.updatedAt)<120000
+    html+='<div class="member-item" onclick="focusFriend(\''+esc(f.userId)+'\')"><div class="member-avatar" style="border-color:'+(isOnline?getColor(f.userId):'transparent')+'">'+esc(f.avatar||'🐻')+(isOnline?'<div class="online-dot"></div>':'')+'</div><div class="member-name">'+esc(f.displayName)+'</div></div>'
   }
-  bar.innerHTML=items.join('')
+  bar.innerHTML=html
 }
-function focusFriend(uid) {
-  const f=S.friends.find(x=>x.userId===uid)
-  if(f?.location&&S.map&&typeof kakao!=='undefined'){S.map.setCenter(new kakao.maps.LatLng(f.location.lat,f.location.lng));S.map.setLevel(4);switchTab('map')}
-}
+function focusFriend(uid){const f=S.friends.find(x=>x.userId===uid);if(f?.location&&S.map&&typeof kakao!=='undefined'){S.map.setCenter(new kakao.maps.LatLng(f.location.lat,f.location.lng));S.map.setLevel(4);switchTab('map')}}
 
-// ════════════════════════════════════════════════════════════
-//  친구 관리
-// ════════════════════════════════════════════════════════════
-async function fetchFriends() {
+// ════════════════════════════════════════════════════════
+//  친구 (성능: 해시 비교로 불필요 렌더링 방지)
+// ════════════════════════════════════════════════════════
+async function fetchFriends(){
   if(!S.token)return
-  try {
-    const r=await api('/api/friends'); const d=await r.json()
+  try{
+    const r=await api('/api/friends');const d=await r.json()
+    const hash=JSON.stringify(d.friends||[])
+    if(hash===S._friendsHash)return  // 변경 없으면 스킵
+    S._friendsHash=hash
     S.friends=d.friends||[]
-    for(const f of S.friends) updateFriendMarker(f)
-    renderMemberBar()
-    renderChatRooms()
-    renderFriendList()
-  } catch(e){}
+    for(const f of S.friends)updateFriendMarker(f)
+    renderMemberBar();renderFriendList()
+  }catch(e){}
 }
-async function fetchFriendRequests() {
+async function fetchFriendRequests(){
   if(!S.token)return
-  try {
-    const r=await api('/api/friends/requests'); const d=await r.json()
+  try{
+    const r=await api('/api/friends/requests');const d=await r.json()
+    const hash=JSON.stringify(d.requests||[])
+    if(hash===S._reqHash)return
+    S._reqHash=hash
     S.pendingReqs=d.requests||[]
     const cnt=S.pendingReqs.length
-    const rb=document.getElementById('req-badge'); const tb=document.getElementById('friends-tbadge')
-    rb.style.display=cnt?'flex':'none'; if(cnt)rb.textContent=cnt
-    tb.style.display=cnt?'flex':'none'; tb.textContent=cnt
+    const rb=document.getElementById('req-badge');const tb=document.getElementById('friends-tbadge')
+    rb.style.display=cnt?'flex':'none';if(cnt)rb.textContent=cnt
+    tb.style.display=cnt?'flex':'none';tb.textContent=cnt
     document.getElementById('req-section').style.display=cnt?'block':'none'
     document.getElementById('req-count-badge').textContent=cnt
-    document.getElementById('req-list').innerHTML=S.pendingReqs.map(req=>
-      '<div class="friend-item"><div class="friend-avatar">'+esc(req.fromAvatar||'🐻')+'</div><div class="friend-info"><div class="friend-name">'+esc(req.fromName)+'</div><div class="friend-id">@'+esc(req.from)+'</div></div><div class="friend-actions"><button class="f-btn accept" onclick="acceptReq(\''+esc(req.from)+'\')">수락</button><button class="f-btn reject" onclick="rejectReq(\''+esc(req.from)+'\')">거절</button></div></div>'
-    ).join('')
-  } catch(e){}
+    document.getElementById('req-list').innerHTML=S.pendingReqs.map(req=>'<div class="friend-item"><div class="friend-avatar">'+esc(req.fromAvatar||'🐻')+'</div><div class="friend-info"><div class="friend-name">'+esc(req.fromName)+'</div><div class="friend-id">@'+esc(req.from)+'</div></div><div class="friend-actions"><button class="f-btn accept" onclick="acceptReq(\''+esc(req.from)+'\')">수락</button><button class="f-btn reject" onclick="rejectReq(\''+esc(req.from)+'\')">거절</button></div></div>').join('')
+  }catch(e){}
 }
-function renderFriendList() {
+function renderFriendList(){
   const el=document.getElementById('friend-list')
-  if(!S.friends.length){ el.innerHTML='<div class="empty-state"><div class="e-icon">👥</div><p>아직 친구가 없어요<br/>친구 아이디로 요청을 보내보세요!</p></div>'; return }
+  if(!S.friends.length){el.innerHTML='<div class="empty-state"><div class="e-icon">👥</div><p>아직 친구가 없어요<br/>친구 아이디로 요청을 보내보세요!</p></div>';return}
   el.innerHTML=S.friends.map(f=>{
-    const hasLoc=!!f.location; const ago=hasLoc?getAgo(f.location.updatedAt):null
-    const isOnline=hasLoc&&ago<120000
-    const locStr=isOnline?'🟢 위치 공유 중 ('+Math.floor(ago/60000)+'분 전)':'⚫ 위치 없음'
+    const isOnline=f.location&&(Date.now()-f.location.updatedAt)<120000
+    const locStr=isOnline?'🟢 위치 공유 중 ('+Math.floor((Date.now()-f.location.updatedAt)/60000)+'분 전)':'⚫ 위치 없음'
     const uid=f.userId
-    return '<div class="friend-item" id="fi-'+uid+'"><div class="friend-avatar">'+esc(f.avatar||'🐻')+'</div>'
-      +'<div class="friend-info">'
-      +'<div class="friend-name">'+esc(f.displayName)+'</div>'
-      +'<div class="friend-id">@'+esc(uid)+'</div>'
-      +'<div class="friend-status"><span class="dot'+(isOnline?' online':'')+'"></span>'+locStr+'</div>'
-      +'</div>'
-      +'<div class="friend-actions">'
-      +'<button class="f-btn chat" onclick="chatWithFriend(\''+uid+'\',\''+esc(f.displayName)+'\')">💬</button>'
-      +'<button class="f-btn reject" onclick="togglePermExpand(\''+uid+'\')" title="권한 설정">⚙️</button>'
-      +'</div></div>'
-      // 권한 설정 패널
-      +'<div class="perm-expand" id="perm-'+uid+'">'
-      +'<div class="perm-row"><span class="perm-label">📡 이 친구에게 내 위치 공유</span>'
-      +'<div class="toggle-sw '+(f.iShareWithFriend!==false?'on':'')+'" id="share-sw-'+uid+'" onclick="toggleSharePerm(\''+uid+'\')"></div></div>'
-      +'<div class="perm-row"><span class="perm-label">👁️ 이 친구 위치 지도에 표시</span>'
-      +'<div class="toggle-sw '+(f.iViewFriend!==false?'on':'')+'" id="view-sw-'+uid+'" onclick="toggleViewPerm(\''+uid+'\')"></div></div>'
-      +'</div>'
-  }).join('<div style="height:1px;background:var(--border);margin:0 0"></div>')
+    return '<div class="friend-item"><div class="friend-avatar">'+esc(f.avatar||'🐻')+'</div><div class="friend-info"><div class="friend-name">'+esc(f.displayName)+'</div><div class="friend-id">@'+esc(uid)+'</div><div class="friend-status"><span class="dot'+(isOnline?' online':'')+'"></span>'+locStr+'</div></div><div class="friend-actions"><button class="f-btn chat" onclick="openDM(\''+uid+'\',\''+esc(f.displayName)+'\',\''+esc(f.avatar||'🐻')+'\')">💬</button><button class="f-btn reject" onclick="togglePermExpand(\''+uid+'\')" title="권한">⚙️</button></div></div><div class="perm-expand" id="perm-'+uid+'"><div class="perm-row"><span class="perm-label">📡 이 친구에게 내 위치 공유</span><div class="toggle-sw '+(f.iShareWithFriend!==false?'on':'')+'" id="share-sw-'+uid+'" onclick="toggleSharePerm(\''+uid+'\')"></div></div><div class="perm-row"><span class="perm-label">👁️ 이 친구 위치 지도에 표시</span><div class="toggle-sw '+(f.iViewFriend!==false?'on':'')+'" id="view-sw-'+uid+'" onclick="toggleViewPerm(\''+uid+'\')"></div></div></div>'
+  }).join('<div style="height:1px;background:var(--border)"></div>')
 }
-function togglePermExpand(uid) {
-  const el=document.getElementById('perm-'+uid)
-  if(el) el.classList.toggle('show')
-}
-async function toggleSharePerm(uid) {
-  const sw=document.getElementById('share-sw-'+uid)
-  const nowOn=sw.classList.contains('on')
-  sw.classList.toggle('on')
-  await api('/api/location/permission',{method:'POST',body:JSON.stringify({friendId:uid,allow:!nowOn})})
-  showToast((!nowOn?'📡 ':'🔕 ')+esc(S.friends.find(f=>f.userId===uid)?.displayName||uid)+'에게 위치 '+ (!nowOn?'공개':'비공개'), 'info')
-}
-async function toggleViewPerm(uid) {
-  const sw=document.getElementById('view-sw-'+uid)
-  const nowOn=sw.classList.contains('on')
-  sw.classList.toggle('on')
-  await api('/api/location/view',{method:'POST',body:JSON.stringify({friendId:uid,show:!nowOn})})
-  // 즉시 마커 업데이트
-  const f=S.friends.find(x=>x.userId===uid)
-  if(f){ f.iViewFriend=!nowOn; updateFriendMarker(f) }
-  showToast((!nowOn?'👁️ ':'🙈 ')+esc(S.friends.find(f=>f.userId===uid)?.displayName||uid)+' 위치 '+ (!nowOn?'표시':'숨김'), 'info')
-}
-async function sendFriendReq() {
+function togglePermExpand(uid){document.getElementById('perm-'+uid)?.classList.toggle('show')}
+async function toggleSharePerm(uid){const sw=document.getElementById('share-sw-'+uid);const on=sw.classList.contains('on');sw.classList.toggle('on');await api('/api/location/permission',{method:'POST',body:JSON.stringify({friendId:uid,allow:!on})});showToast((!on?'📡 ':'🔕 ')+esc(S.friends.find(f=>f.userId===uid)?.displayName||uid)+(!on?' 위치 공개':' 위치 차단'),'info')}
+async function toggleViewPerm(uid){const sw=document.getElementById('view-sw-'+uid);const on=sw.classList.contains('on');sw.classList.toggle('on');await api('/api/location/view',{method:'POST',body:JSON.stringify({friendId:uid,show:!on})});const f=S.friends.find(x=>x.userId===uid);if(f){f.iViewFriend=!on;updateFriendMarker(f)};showToast((!on?'👁️ ':'🙈 ')+esc(S.friends.find(f=>f.userId===uid)?.displayName||uid)+(!on?' 표시':' 숨김'),'info')}
+async function sendFriendReq(){
   const tid=document.getElementById('friend-id-input').value.trim().toLowerCase()
   if(!tid){showToast('아이디를 입력해주세요','error');return}
-  try {
-    const r=await api('/api/friends/request',{method:'POST',body:JSON.stringify({targetUserId:tid})})
-    const d=await r.json()
-    if(!r.ok){showToast(d.error||'요청 실패','error');return}
-    document.getElementById('friend-id-input').value=''
-    showToast(d.auto_accepted?'🎉 친구 추가 완료!':'📨 친구 요청 전송!','success')
-    if(d.auto_accepted)fetchFriends()
-  } catch(e){showToast('요청 실패','error')}
+  try{const r=await api('/api/friends/request',{method:'POST',body:JSON.stringify({targetUserId:tid})});const d=await r.json();if(!r.ok){showToast(d.error||'요청 실패','error');return}document.getElementById('friend-id-input').value='';showToast(d.auto_accepted?'🎉 친구 추가 완료!':'📨 친구 요청 전송!','success');if(d.auto_accepted)fetchFriends()}catch(e){showToast('요청 실패','error')}
 }
-async function acceptReq(fromId) {
-  try {
-    await api('/api/friends/accept',{method:'POST',body:JSON.stringify({fromUserId:fromId})})
-    showToast('🎉 친구 요청 수락!','success'); fetchFriends(); fetchFriendRequests()
-  } catch(e){}
-}
-async function rejectReq(fromId) {
-  try { await api('/api/friends/reject',{method:'POST',body:JSON.stringify({fromUserId:fromId})}); fetchFriendRequests() } catch(e){}
-}
+async function acceptReq(fromId){try{await api('/api/friends/accept',{method:'POST',body:JSON.stringify({fromUserId:fromId})});showToast('🎉 친구 수락!','success');S._reqHash='';S._friendsHash='';fetchFriends();fetchFriendRequests()}catch(e){}}
+async function rejectReq(fromId){try{await api('/api/friends/reject',{method:'POST',body:JSON.stringify({fromUserId:fromId})});S._reqHash='';fetchFriendRequests()}catch(e){}}
 
-// ════════════════════════════════════════════════════════════
-//  채팅방
-// ════════════════════════════════════════════════════════════
-async function fetchRooms() {
+// ════════════════════════════════════════════════════════
+//  채팅방 (성능: 해시 비교)
+// ════════════════════════════════════════════════════════
+async function fetchRooms(){
   if(!S.token)return
-  try {
-    const r=await api('/api/rooms'); const d=await r.json()
+  try{
+    const r=await api('/api/rooms');const d=await r.json()
+    const hash=JSON.stringify(d.rooms||[])
+    if(hash===S._roomsHash)return
+    S._roomsHash=hash
     S.rooms=d.rooms||[]
     renderChatRooms()
-  } catch(e){}
-}
-function renderChatRooms() {
-  const sel=document.getElementById('chat-room-select')
-  // everyone + 1:1 친구방 + 그룹방
-  const chips=['<div class="room-chip'+(S.currentRoom==='everyone'?' active':'')+'" data-room="everyone" data-name="🌍 전체 채팅">🌍 전체</div>']
-  // 친구 1:1
-  for(const f of S.friends){
-    const roomId=[S.userId,f.userId].sort().join('_')
-    chips.push('<div class="room-chip'+(S.currentRoom===roomId?' active':'')+'" data-room="'+roomId+'" data-name="'+esc(f.displayName)+'">'+(f.avatar||'🐻')+' '+esc(f.displayName)+'</div>')
-  }
-  // 그룹 채팅방
-  for(const rm of S.rooms){
-    if(rm.type==='group'){
-      chips.push('<div class="room-chip'+(S.currentRoom===rm.roomId?' active':'')+'" data-room="'+rm.roomId+'" data-name="'+esc(rm.name)+'">👥 '+esc(rm.name)+'<span class="chip-close" onclick="leaveRoom(event,\''+rm.roomId+'\')">✕</span></div>')
-    }
-  }
-  sel.innerHTML=chips.join('')
+  }catch(e){}
 }
 
-function selectRoom(roomId, roomName) {
-  S.currentRoom=roomId; S.currentRoomName=roomName||roomId; S.lastChatTs=0
+function renderChatRooms(){
+  const sel=document.getElementById('chat-room-select')
+  if(!S.rooms.length){sel.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 4px">채팅방이 없어요. + 버튼으로 만들어보세요!</div>';return}
+  sel.innerHTML=S.rooms.map(rm=>{
+    const isActive=S.currentRoom===rm.roomId
+    const unread=S.roomUnread[rm.roomId]||0
+    const icon=rm.type==='dm'?'':'👥 '
+    return '<div class="room-chip'+(isActive?' active':'')+'" data-room="'+rm.roomId+'" data-name="'+esc(rm.name)+'">'+icon+esc(rm.name)+(unread?'<span class="chip-badge">'+unread+'</span>':'')+'</div>'
+  }).join('')
+}
+
+function selectRoom(roomId,roomName){
+  S.currentRoom=roomId;S.currentRoomName=roomName||roomId;S.lastChatTs=0
+  S.currentRoomData=S.rooms.find(r=>r.roomId===roomId)||null
+  S.roomUnread[roomId]=0
   document.querySelectorAll('.room-chip').forEach(c=>c.classList.toggle('active',c.dataset.room===roomId))
   document.getElementById('chat-room-name').textContent=S.currentRoomName
   document.getElementById('chat-msgs').innerHTML=''
+  document.getElementById('chat-input').disabled=false
+  document.getElementById('chat-input').placeholder='메시지 입력...'
+  updateRoomLocBtn()
   fetchChat()
-}
-function chatWithFriend(uid, name) {
-  const roomId=[S.userId,uid].sort().join('_')
-  switchTab('chat')
-  setTimeout(()=>selectRoom(roomId,name),100)
+  closeRoomLocPanel()
 }
 
-function openCreateRoom() {
-  // 친구 목록 렌더
+function updateRoomLocBtn(){
+  const btn=document.getElementById('room-loc-btn')
+  if(!S.currentRoomData){btn.style.display='none';return}
+  btn.style.display='flex'
+  const active=S.currentRoomData.locShare
+  btn.classList.toggle('on',active)
+  document.getElementById('room-loc-btn-text').textContent=active?'위치공유 ON':'위치공유 OFF'
+}
+
+async function toggleRoomLocShare(){
+  if(!S.currentRoom||!S.currentRoomData)return
+  const newState=!S.currentRoomData.locShare
+  try{
+    const r=await api('/api/rooms/'+S.currentRoom+'/locshare',{method:'POST',body:JSON.stringify({enabled:newState})})
+    const d=await r.json()
+    S.currentRoomData.locShare=d.locShare
+    const rm=S.rooms.find(r=>r.roomId===S.currentRoom);if(rm)rm.locShare=d.locShare
+    S._roomsHash=''  // 강제 새로고침
+    updateRoomLocBtn()
+    showToast(d.locShare?'📍 위치 공유 켜짐 — 멤버 위치가 공유됩니다':'🔕 위치 공유 꺼짐',d.locShare?'success':'info')
+    if(d.locShare){fetchRoomLocations();showRoomLocPanel()}else{closeRoomLocPanel()}
+  }catch(e){showToast('설정 실패','error')}
+}
+
+async function fetchRoomLocations(){
+  if(!S.currentRoom||!S.currentRoomData?.locShare)return
+  try{
+    const r=await api('/api/rooms/'+S.currentRoom+'/locations')
+    const d=await r.json()
+    if(!d.locShare){closeRoomLocPanel();return}
+    renderRoomLocPanel(d.locations||[])
+  }catch(e){}
+}
+
+function showRoomLocPanel(){S.locPanelOpen=true;document.getElementById('room-loc-panel').classList.add('show')}
+function closeRoomLocPanel(){S.locPanelOpen=false;document.getElementById('room-loc-panel').classList.remove('show')}
+
+function renderRoomLocPanel(locs){
+  const el=document.getElementById('room-loc-list')
+  if(!locs.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">아직 위치 데이터가 없습니다<br/><small style="font-size:11px">내 위치 공유를 켜두면 자동으로 표시됩니다</small></div>';return}
+  el.innerHTML=locs.map(l=>{
+    const ago=Math.floor((Date.now()-l.updatedAt)/1000)
+    const agoStr=ago<60?ago+'초 전':Math.floor(ago/60)+'분 전'
+    const isMe=l.userId===S.userId
+    return '<div class="room-loc-item" onclick="focusLocOnMap('+l.lat+','+l.lng+')"><div class="room-loc-avatar">'+esc(l.avatar||'🐻')+'</div><div class="room-loc-info"><div class="room-loc-name">'+esc(l.displayName)+(isMe?' (나)':'')+'</div><div class="room-loc-time">'+agoStr+'</div></div><i class="fas fa-chevron-right room-loc-arrow"></i></div>'
+  }).join('')
+}
+
+function focusLocOnMap(lat,lng){switchTab('map');setTimeout(()=>{if(S.map&&typeof kakao!=='undefined'){S.map.setCenter(new kakao.maps.LatLng(lat,lng));S.map.setLevel(4)}},100)}
+
+// 1:1 채팅 (DM)
+async function openDM(uid,name,avatar){
+  try{
+    const r=await api('/api/rooms/dm',{method:'POST',body:JSON.stringify({targetUserId:uid})})
+    const d=await r.json()
+    if(!r.ok){showToast('채팅 열기 실패','error');return}
+    if(!S.rooms.find(r=>r.roomId===d.room.roomId)){S.rooms.unshift(d.room);S._roomsHash='';renderChatRooms()}
+    switchTab('chat')
+    setTimeout(()=>selectRoom(d.room.roomId,name),100)
+  }catch(e){showToast('오류 발생','error')}
+}
+
+function openCreateRoom(){
   const list=document.getElementById('member-select-list')
-  list.innerHTML=S.friends.map(f=>
-    '<div class="member-select-item" data-uid="'+f.userId+'" onclick="toggleMemberSelect(this)">'
-    +'<div class="member-select-check"></div>'
-    +'<span style="font-size:20px">'+esc(f.avatar||'🐻')+'</span>'
-    +'<div><div style="font-size:14px;font-weight:600">'+esc(f.displayName)+'</div><div style="font-size:12px;color:var(--text2)">@'+esc(f.userId)+'</div></div>'
-    +'</div>'
-  ).join('')
+  list.innerHTML=S.friends.map(f=>'<div class="member-select-item" data-uid="'+f.userId+'" onclick="toggleMemberSelect(this)"><div class="member-select-check"></div><span style="font-size:18px">'+esc(f.avatar||'🐻')+'</span><div><div style="font-size:14px;font-weight:600">'+esc(f.displayName)+'</div><div style="font-size:12px;color:var(--text2)">@'+esc(f.userId)+'</div></div></div>').join('')
   document.getElementById('create-room-panel').classList.add('show')
 }
-function closeCreateRoom() { document.getElementById('create-room-panel').classList.remove('show') }
-function toggleMemberSelect(el) { el.classList.toggle('selected') }
+function closeCreateRoom(){document.getElementById('create-room-panel').classList.remove('show')}
+function toggleMemberSelect(el){el.classList.toggle('selected')}
 
-async function createRoom() {
+async function createRoom(){
   const name=document.getElementById('new-room-name').value.trim()
-  if(!name){showToast('채팅방 이름을 입력해주세요','error');return}
   const selected=[...document.querySelectorAll('.member-select-item.selected')].map(el=>el.dataset.uid)
   if(!selected.length){showToast('친구를 1명 이상 선택해주세요','error');return}
+  if(selected.length===1&&!name){
+    const f=S.friends.find(x=>x.userId===selected[0])
+    if(f){closeCreateRoom();openDM(f.userId,f.displayName,f.avatar||'🐻');return}
+  }
+  if(!name){showToast('채팅방 이름을 입력해주세요','error');return}
   try{
     const r=await api('/api/rooms',{method:'POST',body:JSON.stringify({name,memberIds:selected})})
     const d=await r.json()
-    if(!r.ok){showToast('채팅방 생성 실패','error');return}
-    closeCreateRoom()
-    document.getElementById('new-room-name').value=''
+    if(!r.ok){showToast('생성 실패','error');return}
+    closeCreateRoom();document.getElementById('new-room-name').value=''
+    S.rooms.unshift(d.room);S._roomsHash='';renderChatRooms()
     showToast('💬 채팅방 "'+esc(name)+'" 생성!','success')
-    await fetchRooms()
-    setTimeout(()=>selectRoom(d.room.roomId,d.room.name),300)
-  } catch(e){showToast('생성 실패','error')}
+    setTimeout(()=>selectRoom(d.room.roomId,d.room.name),200)
+  }catch(e){showToast('생성 실패','error')}
 }
 
-async function leaveRoom(e, roomId) {
-  e.stopPropagation()
-  if(!confirm('이 채팅방에서 나가시겠습니까?'))return
-  await api('/api/rooms/'+roomId+'/leave',{method:'POST'})
-  if(S.currentRoom===roomId) selectRoom('everyone','🌍 전체 채팅')
-  fetchRooms(); showToast('채팅방에서 나갔습니다','info')
+async function leaveRoom(roomId){
+  if(!roomId||!confirm('채팅방에서 나가시겠습니까?'))return
+  try{
+    await api('/api/rooms/'+roomId+'/leave',{method:'POST'})
+    S.rooms=S.rooms.filter(r=>r.roomId!==roomId);S._roomsHash=''
+    renderChatRooms()
+    if(S.currentRoom===roomId){S.currentRoom=null;S.currentRoomData=null;document.getElementById('chat-room-name').textContent='채팅방을 선택하세요';document.getElementById('chat-msgs').innerHTML='<div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div>';document.getElementById('chat-input').disabled=true;document.getElementById('room-loc-btn').style.display='none';closeRoomLocPanel()}
+    showToast('채팅방 나가기 완료','info')
+  }catch(e){showToast('실패','error')}
 }
 
-// ════════════════════════════════════════════════════════════
-//  채팅
-// ════════════════════════════════════════════════════════════
-async function fetchChat() {
-  if(!S.token)return
+// ════════════════════════════════════════════════════════
+//  채팅 메시지 (DocumentFragment 최적화)
+// ════════════════════════════════════════════════════════
+async function fetchChat(){
+  if(!S.token||!S.currentRoom)return
   const roomId=S.currentRoom
-  try {
+  try{
     const r=await api('/api/chat/'+roomId+'?since='+S.lastChatTs)
+    if(!r.ok)return
     const d=await r.json()
     const msgs=d.messages||[]
     if(!msgs.length)return
     const container=document.getElementById('chat-msgs')
+    const isAtBottom=container.scrollHeight-container.scrollTop-container.clientHeight<60
+    const frag=document.createDocumentFragment()
     let hasNew=false
     for(const m of msgs){
       if(m.timestamp>S.lastChatTs){
-        appendMsg(m); S.lastChatTs=Math.max(S.lastChatTs,m.timestamp); hasNew=true
+        S.lastChatTs=Math.max(S.lastChatTs,m.timestamp);hasNew=true
+        frag.appendChild(buildMsgEl(m))
       }
     }
     if(hasNew){
-      container.scrollTop=container.scrollHeight
+      // 초기 로드 시 empty-state 제거
+      const empty=container.querySelector('.empty-state')
+      if(empty)empty.remove()
+      container.appendChild(frag)
+      if(isAtBottom)container.scrollTop=container.scrollHeight
       const activeTab=document.querySelector('.tab-btn.active')?.id
-      if(activeTab!=='tbtn-chat'){
-        S.unreadChat++; const b=document.getElementById('chat-tbadge')
-        b.style.display='flex'; b.textContent=S.unreadChat>9?'9+':S.unreadChat
+      if(activeTab!=='tbtn-chat'||S.currentRoom!==roomId){
+        S.unreadChat++;S.roomUnread[roomId]=(S.roomUnread[roomId]||0)+1
+        const b=document.getElementById('chat-tbadge');b.style.display='flex';b.textContent=S.unreadChat>9?'9+':S.unreadChat
+        renderChatRooms()
       }
     }
-  } catch(e){}
+  }catch(e){}
 }
 
-function appendMsg(m) {
-  const c=document.getElementById('chat-msgs')
+function buildMsgEl(m){
   const isMe=m.userId===S.userId
   const isSys=m.type==='system'
   const isSOS=m.type==='sos'
   const t=new Date(m.timestamp).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
-  if(isSys){c.insertAdjacentHTML('beforeend','<div class="msg-system">'+esc(m.message)+'</div>');return}
-  // 지도 말풍선
+  const div=document.createElement('div')
+  if(isSys){div.className='msg-system';div.textContent=m.message;return div}
   if(!isSOS&&m.type!=='location'){
-    if(isMe&&S.lat&&S.lng) showMapBubble(m.userId,m.message,S.lat,S.lng)
-    else { const fr=S.friends.find(f=>f.userId===m.userId); if(fr?.location)showMapBubble(m.userId,m.message,fr.location.lat,fr.location.lng) }
+    if(isMe&&S.lat&&S.lng)showMapBubble(m.userId,m.message,S.lat,S.lng)
+    else{const fr=S.friends.find(f=>f.userId===m.userId);if(fr?.location)showMapBubble(m.userId,m.message,fr.location.lat,fr.location.lng)}
   }
-  const cls=isSOS?'msg-row msg-sos':isMe?'msg-row me':'msg-row'
-  const avatarHtml=isMe?'':'<div class="msg-avatar">'+(m.avatar||'🐻')+'</div>'
-  const senderHtml=isMe?'':'<div class="msg-sender">'+esc(m.userName)+'</div>'
-  const flexDir=isMe?';flex-direction:row-reverse':''
-  c.insertAdjacentHTML('beforeend',
-    '<div class="'+cls+'">'+avatarHtml+'<div class="msg-body">'+senderHtml
-    +'<div style="display:flex;align-items:flex-end;gap:4px'+flexDir+'">'
-    +'<div class="msg-bubble">'+esc(m.message)+'</div>'
-    +'<div class="msg-time">'+t+'</div>'
-    +'</div></div></div>')
+  div.className=isSOS?'msg-row msg-sos':isMe?'msg-row me':'msg-row'
+  div.innerHTML=(isMe?'':'<div class="msg-avatar">'+esc(m.avatar||'🐻')+'</div>')
+    +'<div class="msg-body">'+(isMe?'':'<div class="msg-sender">'+esc(m.userName)+'</div>')
+    +'<div style="display:flex;align-items:flex-end;gap:4px'+(isMe?';flex-direction:row-reverse':'')+'"><div class="msg-bubble">'+esc(m.message)+'</div><div class="msg-time">'+t+'</div></div></div>'
+  return div
 }
 
-async function sendChat() {
+async function sendChat(){
   const input=document.getElementById('chat-input')
-  const msg=input.value.trim(); if(!msg)return
+  const msg=input.value.trim();if(!msg||!S.currentRoom)return
   input.value=''
-  try {
-    await api('/api/chat',{method:'POST',body:JSON.stringify({roomId:S.currentRoom,message:msg})})
-    setTimeout(fetchChat,200)
-  } catch(e){showToast('전송 실패','error')}
+  try{await api('/api/chat',{method:'POST',body:JSON.stringify({roomId:S.currentRoom,message:msg})});fetchChat()}catch(e){showToast('전송 실패','error')}
 }
-async function shareMyLocInChat() {
+async function shareMyLocInChat(){
   if(!S.lat){showToast('위치를 가져오는 중...','info');return}
-  const msg='📍 내 현재 위치 https://map.kakao.com/link/map/'+S.displayName+','+S.lat+','+S.lng
-  try{await api('/api/chat',{method:'POST',body:JSON.stringify({roomId:S.currentRoom,message:msg,type:'location'})});setTimeout(fetchChat,200)}catch(e){}
+  if(!S.currentRoom){showToast('채팅방을 선택해주세요','info');return}
+  const msg='📍 내 현재 위치 https://map.kakao.com/link/map/'+encodeURIComponent(S.displayName)+','+S.lat+','+S.lng
+  try{await api('/api/chat',{method:'POST',body:JSON.stringify({roomId:S.currentRoom,message:msg,type:'location'})});fetchChat()}catch(e){}
 }
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  SOS
-// ════════════════════════════════════════════════════════════
-async function sendSOS() {
+// ════════════════════════════════════════════════════════
+async function sendSOS(){
   if(!confirm('🆘 SOS를 모든 친구에게 보내시겠습니까?'))return
-  try {
+  try{
     const r=await api('/api/sos',{method:'POST',body:JSON.stringify({lat:S.lat,lng:S.lng})})
     const d=await r.json()
     showToast('🆘 SOS 전송 완료!','sos')
-    // 내 SOS 알림도 바로 표시 (종료 버튼 보이도록)
-    S.activeSOS={ sosId:d.sosId, fromUserId:S.userId, fromName:S.displayName, isMe:true }
-    showSOSBanner(S.displayName+'님(나)의 SOS가 발신되었습니다', '내 SOS 활성 중', true)
-    setTimeout(fetchChat,300)
-  } catch(e){showToast('SOS 전송 실패','error')}
+    S.activeSOS={sosId:d.sosId,fromUserId:S.userId,fromName:S.displayName,isMe:true}
+    showSOSBanner(S.displayName+'님(나)의 SOS가 발신되었습니다','내 SOS 활성 중',true)
+  }catch(e){showToast('SOS 전송 실패','error')}
 }
-
-function showSOSBanner(msg, title, isMe) {
-  const banner=document.getElementById('sos-banner')
+function showSOSBanner(msg,title,isMe){
   document.getElementById('sos-banner-title-text').textContent='🆘 '+(title||'SOS 긴급 알림')
   document.getElementById('sos-banner-msg').textContent=msg
-  const ackBtn=document.getElementById('sos-ack-btn')
-  const dismissBtn=document.getElementById('sos-dismiss-btn')
-  ackBtn.style.display=isMe?'none':'flex'
-  dismissBtn.style.display=isMe?'flex':'none'
-  banner.classList.add('show')
-  // 진동 (긴급)
-  if(navigator.vibrate) navigator.vibrate([400,150,400,150,400,150,800])
-  // 화면 상단 SOS 배너가 탑바를 가리므로 메인 화면 패딩 조정
-  document.getElementById('screen-main').style.paddingTop='88px'
-  // 데스크탑 알림
-  if(Notification.permission==='granted'&&!isMe){
-    new Notification('🆘 SOS 긴급 알림', {
-      body: msg, icon: '/icon-192.png',
-      tag: 'sos-'+(S.activeSOS?.sosId||''), requireInteraction: true
-    })
-  }
-  // 탭 타이틀 깜빡임
-  if(!isMe) startTitleBlink('🆘 SOS!')
+  document.getElementById('sos-ack-btn').style.display=isMe?'none':'flex'
+  document.getElementById('sos-dismiss-btn').style.display=isMe?'flex':'none'
+  document.getElementById('sos-banner').classList.add('show')
+  document.getElementById('screen-main').style.paddingTop='100px'
+  if(navigator.vibrate)navigator.vibrate([400,150,400,150,400,150,800])
+  if(Notification.permission==='granted'&&!isMe)new Notification('🆘 SOS 긴급 알림',{body:msg,icon:'/icon-192.png',tag:'sos',requireInteraction:true})
+  startTitleBlink('🆘 SOS!')
 }
-function hideSOSBanner() {
-  document.getElementById('sos-banner').classList.remove('show')
-  document.getElementById('screen-main').style.paddingTop=''
-  S.activeSOS=null
-  stopTitleBlink()
-}
-let _titleBlinkTimer=null, _origTitle='모여봐'
-function startTitleBlink(msg){
-  stopTitleBlink()
-  let on=true
-  _titleBlinkTimer=setInterval(()=>{ document.title=on?msg:_origTitle; on=!on },800)
-}
-function stopTitleBlink(){
-  if(_titleBlinkTimer){clearInterval(_titleBlinkTimer);_titleBlinkTimer=null}
-  document.title=_origTitle
-}
+function hideSOSBanner(){document.getElementById('sos-banner').classList.remove('show');document.getElementById('screen-main').style.paddingTop='';S.activeSOS=null;stopTitleBlink()}
+let _titleTimer=null,_origTitle='모여봐'
+function startTitleBlink(msg){stopTitleBlink();let on=true;_titleTimer=setInterval(()=>{document.title=on?msg:_origTitle;on=!on},800)}
+function stopTitleBlink(){if(_titleTimer){clearInterval(_titleTimer);_titleTimer=null};document.title=_origTitle}
 
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('sos-ack-btn').addEventListener('click',async()=>{
     if(!S.activeSOS)return
     await api('/api/sos/acknowledge',{method:'POST',body:JSON.stringify({sosId:S.activeSOS.sosId})})
-    showToast('✅ SOS 확인 완료','success')
-    hideSOSBanner()
-    setTimeout(fetchChat,300)
+    showToast('✅ SOS 확인 완료','success');hideSOSBanner()
   })
   document.getElementById('sos-dismiss-btn').addEventListener('click',async()=>{
     if(!S.activeSOS)return
     await api('/api/sos/dismiss',{method:'POST',body:JSON.stringify({sosId:S.activeSOS.sosId})})
-    showToast('🟢 SOS 종료되었습니다','success')
-    hideSOSBanner()
-    setTimeout(fetchChat,300)
+    showToast('🟢 SOS 종료되었습니다','success');hideSOSBanner()
   })
 })
 
-async function fetchSOSCheck() {
+async function fetchSOSCheck(){
   if(!S.token)return
-  try {
+  try{
     const r=await api('/api/sos/check?since='+S.lastSOSTs)
     const d=await r.json()
     for(const s of (d.sos||[])){
       if(s.timestamp>S.lastSOSTs){
         S.lastSOSTs=Math.max(S.lastSOSTs,s.timestamp)
-        // 내가 보낸 SOS가 아닌 것만 알림 + 활성 상태인 것만
-        if(s.userId!==S.userId&&s.active!==false){
-          // 이미 표시 중인 SOS와 다른 경우만 갱신
-          if(!S.activeSOS||S.activeSOS.sosId!==s.sosId){
-            S.activeSOS={ sosId:s.sosId, fromUserId:s.userId, fromName:s.userName, isMe:false }
-            showSOSBanner(s.message, s.userName+'님의 SOS!', false)
-          }
+        if(s.userId!==S.userId&&s.active!==false&&(!S.activeSOS||S.activeSOS.sosId!==s.sosId)){
+          S.activeSOS={sosId:s.sosId,fromUserId:s.userId,fromName:s.userName,isMe:false}
+          showSOSBanner(s.message,s.userName+'님의 SOS!',false)
         }
-        // 이미 표시 중인 SOS가 종료됐으면 배너 닫기
-        if(S.activeSOS&&S.activeSOS.sosId===s.sosId&&s.active===false){
-          hideSOSBanner()
-          showToast('🟢 SOS가 종료되었습니다','info')
-        }
+        if(S.activeSOS&&S.activeSOS.sosId===s.sosId&&s.active===false){hideSOSBanner();showToast('🟢 SOS가 종료되었습니다','info')}
       }
     }
-  } catch(e){}
+  }catch(e){}
 }
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  약속장소
-// ════════════════════════════════════════════════════════════
-async function searchPlace() {
+// ════════════════════════════════════════════════════════
+async function searchPlace(){
   const kw=document.getElementById('place-input').value.trim()
   if(!kw)return
   if(typeof kakao==='undefined'||!kakao.maps){showToast('카카오맵 API 키 필요','error');return}
@@ -1570,55 +1495,36 @@ async function searchPlace() {
   ps.keywordSearch(kw,(result,status)=>{
     if(status!==kakao.maps.services.Status.OK){showToast('검색 결과 없음','info');return}
     window._plRes=result
-    const el=document.getElementById('place-results'); el.style.display='block'
+    const el=document.getElementById('place-results');el.style.display='block'
     el.innerHTML=result.slice(0,5).map((p,i)=>'<div class="place-item" onclick="selectPlace('+i+')"><div class="pname">'+esc(p.place_name)+'</div><div class="paddr">'+esc(p.address_name)+'</div></div>').join('')
   },{location:S.lat?new kakao.maps.LatLng(S.lat,S.lng):undefined})
 }
-function selectPlace(i) {
-  const p=window._plRes[i]
-  S.selectedPlace={name:p.place_name,lat:parseFloat(p.y),lng:parseFloat(p.x),address:p.address_name}
-  document.getElementById('place-results').style.display='none'; showSelectedPlace()
-}
-function showSelectedPlace() {
-  if(!S.selectedPlace)return
-  const el=document.getElementById('selected-place'); el.style.display='block'
-  document.getElementById('sp-name').textContent=S.selectedPlace.name
-  document.getElementById('sp-addr').textContent=S.selectedPlace.address||S.selectedPlace.lat.toFixed(5)+', '+S.selectedPlace.lng.toFixed(5)
-}
-async function setAppointment() {
+function selectPlace(i){const p=window._plRes[i];S.selectedPlace={name:p.place_name,lat:parseFloat(p.y),lng:parseFloat(p.x),address:p.address_name};document.getElementById('place-results').style.display='none';showSelectedPlace()}
+function showSelectedPlace(){if(!S.selectedPlace)return;const el=document.getElementById('selected-place');el.style.display='block';document.getElementById('sp-name').textContent=S.selectedPlace.name;document.getElementById('sp-addr').textContent=S.selectedPlace.address||S.selectedPlace.lat.toFixed(5)+', '+S.selectedPlace.lng.toFixed(5)}
+async function setAppointment(){
   if(!S.selectedPlace){showToast('장소를 먼저 선택해주세요','error');return}
   const roomId='apt_'+[S.userId,...S.friends.map(f=>f.userId)].sort().join('_')
-  try {
-    await api('/api/appointment',{method:'POST',body:JSON.stringify({roomId,placeName:S.selectedPlace.name,lat:S.selectedPlace.lat,lng:S.selectedPlace.lng})})
-    showToast('📌 약속장소 지정 완료!','success'); await fetchAppointment()
-    const aptMsg='📌 약속장소를 "'+S.selectedPlace.name+'"(으)로 지정했습니다'
-    await api('/api/chat',{method:'POST',body:JSON.stringify({roomId:S.currentRoom,message:aptMsg,type:'system'})})
-  } catch(e){showToast('지정 실패','error')}
+  try{await api('/api/appointment',{method:'POST',body:JSON.stringify({roomId,placeName:S.selectedPlace.name,lat:S.selectedPlace.lat,lng:S.selectedPlace.lng})});showToast('📌 약속장소 지정 완료!','success');await fetchAppointment()}catch(e){showToast('지정 실패','error')}
 }
-async function fetchAppointment() {
-  if(!S.token)return
+async function fetchAppointment(){
+  if(!S.token||!S.friends.length)return
   const roomId='apt_'+[S.userId,...S.friends.map(f=>f.userId)].sort().join('_')
-  try{const r=await api('/api/appointment/'+roomId);const d=await r.json();S.appointment=d.appointment;updateAptUI(d.appointment)}catch(e){}
+  try{const r=await api('/api/appointment/'+roomId);const d=await r.json();S.appointment=d.appointment;if(d.appointment)updateAptUI(d.appointment)}catch(e){}
 }
-function updateAptUI(apt) {
-  if(!apt)return
-  const chip=document.getElementById('apt-chip'); chip.style.display='flex'
+function updateAptUI(apt){
+  document.getElementById('apt-chip').style.display='flex'
   document.getElementById('apt-chip-name').textContent=apt.placeName
-  const card=document.getElementById('cur-apt-card'); card.style.display='block'
+  document.getElementById('cur-apt-card').style.display='block'
   document.getElementById('cur-apt-name').textContent=apt.placeName
   if(S.map&&typeof kakao!=='undefined'){
     if(S.aptMarker)S.aptMarker.setMap(null)
-    const content='<div style="background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:6px 12px;border-radius:12px;font-size:12px;font-weight:700;box-shadow:0 4px 16px rgba(239,68,68,0.5);">📌 '+esc(apt.placeName)+'</div>'
-    S.aptMarker=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(apt.lat,apt.lng),content,yAnchor:1.6})
-    S.aptMarker.setMap(S.map)
+    const el=document.createElement('div');el.style.cssText='background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:5px 11px;border-radius:11px;font-size:12px;font-weight:700;box-shadow:0 4px 16px rgba(239,68,68,0.5);white-space:nowrap';el.textContent='📌 '+apt.placeName
+    S.aptMarker=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(apt.lat,apt.lng),content:el,yAnchor:1.6});S.aptMarker.setMap(S.map)
   }
 }
-function focusApt() {
-  if(!S.appointment||!S.map||typeof kakao==='undefined')return
-  S.map.setCenter(new kakao.maps.LatLng(S.appointment.lat,S.appointment.lng)); S.map.setLevel(4); switchTab('map')
-}
+function focusApt(){if(!S.appointment||!S.map||typeof kakao==='undefined')return;S.map.setCenter(new kakao.maps.LatLng(S.appointment.lat,S.appointment.lng));S.map.setLevel(4);switchTab('map')}
 function goToApptTab(){switchTab('appt');openTransit()}
-async function findMidpoint() {
+async function findMidpoint(){
   if(!S.lat){showToast('내 위치를 먼저 가져와주세요','info');return}
   const locs=[{lat:S.lat,lng:S.lng},...S.friends.filter(f=>f.location).map(f=>f.location)]
   if(locs.length<2){showToast('친구의 위치 정보가 필요합니다','info');return}
@@ -1627,101 +1533,65 @@ async function findMidpoint() {
   let name=midLat.toFixed(4)+', '+midLng.toFixed(4)
   if(typeof kakao!=='undefined'&&kakao.maps){
     const geo=new kakao.maps.services.Geocoder()
-    geo.coord2Address(midLng,midLat,(res,st)=>{
-      if(st===kakao.maps.services.Status.OK&&res[0])name=res[0].address.address_name
-      S.midpointData={name,lat:midLat,lng:midLng}
-      const el=document.getElementById('midpoint-result'); el.style.display='block'
-      document.getElementById('mp-name').textContent=name
-    })
-  } else {
-    S.midpointData={name,lat:midLat,lng:midLng}
-    const el=document.getElementById('midpoint-result'); el.style.display='block'
-    document.getElementById('mp-name').textContent=name
-  }
+    geo.coord2Address(midLng,midLat,(res,st)=>{if(st===kakao.maps.services.Status.OK&&res[0])name=res[0].address.address_name;S.midpointData={name,lat:midLat,lng:midLng};document.getElementById('midpoint-result').style.display='block';document.getElementById('mp-name').textContent=name})
+  } else {S.midpointData={name,lat:midLat,lng:midLng};document.getElementById('midpoint-result').style.display='block';document.getElementById('mp-name').textContent=name}
 }
-function setMidpointAsApt(){ if(!S.midpointData)return; S.selectedPlace={name:S.midpointData.name,lat:S.midpointData.lat,lng:S.midpointData.lng,address:''}; showSelectedPlace(); setAppointment() }
+function setMidpointAsApt(){if(!S.midpointData)return;S.selectedPlace={name:S.midpointData.name,lat:S.midpointData.lat,lng:S.midpointData.lng,address:''};showSelectedPlace();setAppointment()}
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  대중교통
-// ════════════════════════════════════════════════════════════
-async function openTransit() {
+// ════════════════════════════════════════════════════════
+async function openTransit(){
   if(!S.appointment){showToast('약속장소를 먼저 지정해주세요','info');return}
   if(!S.lat){showToast('내 위치를 가져오는 중입니다','info');return}
-  const panel=document.getElementById('transit-panel')
-  panel.style.display='block'
+  const panel=document.getElementById('transit-panel');panel.style.display='block'
   document.getElementById('transit-spinner').style.display='block'
   document.getElementById('transit-results').innerHTML=''
-  try {
-    const r=await api('/api/transit?sx='+S.lng+'&sy='+S.lat+'&ex='+S.appointment.lng+'&ey='+S.appointment.lat)
-    const d=await r.json()
-    document.getElementById('transit-spinner').style.display='none'
-    renderTransit(d)
-  } catch(e){
-    document.getElementById('transit-spinner').style.display='none'
-    document.getElementById('transit-results').innerHTML='<p style="color:var(--text2);text-align:center;padding:16px;font-size:13px">조회 실패</p>'
-  }
+  try{const r=await api('/api/transit?sx='+S.lng+'&sy='+S.lat+'&ex='+S.appointment.lng+'&ey='+S.appointment.lat);const d=await r.json();document.getElementById('transit-spinner').style.display='none';renderTransit(d)}catch(e){document.getElementById('transit-spinner').style.display='none';document.getElementById('transit-results').innerHTML='<p style="color:var(--text2);text-align:center;padding:16px;font-size:13px">조회 실패</p>'}
 }
 function closeTransit(){document.getElementById('transit-panel').style.display='none'}
-function renderTransit(data) {
-  const el=document.getElementById('transit-results'); let html=''
+function renderTransit(data){
+  const el=document.getElementById('transit-results');let html=''
   if(data.demo)html+='<div class="transit-demo-note">⚠️ 데모 데이터 — ODsay API 키 설정 시 실제 경로 조회</div>'
   const paths=(data.result?.path||[]).slice(0,3)
   if(!paths.length){el.innerHTML='<p style="color:var(--text2);text-align:center;padding:16px;font-size:13px">경로 없음</p>';return}
   const typeMap={1:'지하철',2:'버스+지하철',3:'버스'}
   html+=paths.map(p=>{
     const info=p.info
-    const steps=(p.subPath||[]).filter(sp=>sp.trafficType!==3).map(sp=>{
-      const isS=sp.trafficType===1
-      const name=isS?(sp.lane?.[0]?.name||'지하철'):(sp.lane?.[0]?.busNo||'버스')
-      return '<div class="step-chip '+(isS?'subway':'bus')+'">'+(isS?'🚇':'🚌')+' '+name+'</div>'
-    }).join('<span style="color:var(--text3);font-size:11px">▸</span>')
-    return '<div class="transit-route"><div class="transit-top"><div class="transit-time">'+info.totalTime+'<span style="font-size:13px;font-weight:500;color:var(--text2)">분</span></div><div class="transit-tag">'+(typeMap[p.pathType]||'대중교통')+'</div></div><div class="transit-steps">'+steps+'<span style="font-size:11px;color:var(--text3)">📍'+(S.appointment?.placeName||'목적지')+'</span></div><div class="transit-meta"><span>💰 '+((info.payment||0).toLocaleString())+'원</span><span>🚇 지하철 '+(info.subwayTransitCount||0)+'회</span><span>🚌 버스 '+(info.busTransitCount||0)+'회</span></div></div>'
+    const steps=(p.subPath||[]).filter(sp=>sp.trafficType!==3).map(sp=>{const isS=sp.trafficType===1;const name=isS?(sp.lane?.[0]?.name||'지하철'):(sp.lane?.[0]?.busNo||'버스');return '<div class="step-chip '+(isS?'subway':'bus')+'">'+(isS?'🚇':'🚌')+' '+name+'</div>'}).join('<span style="color:var(--text3);font-size:11px">▸</span>')
+    return '<div class="transit-route"><div class="transit-top"><div class="transit-time">'+info.totalTime+'<span style="font-size:13px;font-weight:500;color:var(--text2)">분</span></div><div class="transit-tag">'+(typeMap[p.pathType]||'대중교통')+'</div></div><div class="transit-steps">'+steps+'</div><div class="transit-meta"><span>💰 '+((info.payment||0).toLocaleString())+'원</span><span>🚇 '+info.subwayTransitCount+'회</span><span>🚌 '+info.busTransitCount+'회</span></div></div>'
   }).join('')
   el.innerHTML=html
 }
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  UI 유틸
-// ════════════════════════════════════════════════════════════
-function switchTab(tab) {
-  ['map','chat','appt','friends'].forEach(t=>{
-    document.getElementById('tab-'+t).classList.toggle('active',t===tab)
-    document.getElementById('tbtn-'+t).classList.toggle('active',t===tab)
-  })
-  if(tab==='chat'){
-    S.unreadChat=0; const b=document.getElementById('chat-tbadge'); b.style.display='none'
-    setTimeout(()=>{ const m=document.getElementById('chat-msgs'); m.scrollTop=m.scrollHeight },100)
-  }
+// ════════════════════════════════════════════════════════
+function switchTab(tab){
+  ['map','chat','appt','friends'].forEach(t=>{document.getElementById('tab-'+t).classList.toggle('active',t===tab);document.getElementById('tbtn-'+t).classList.toggle('active',t===tab)})
+  if(tab==='chat'){S.unreadChat=0;const b=document.getElementById('chat-tbadge');b.style.display='none';setTimeout(()=>{const m=document.getElementById('chat-msgs');m.scrollTop=m.scrollHeight},100)}
   if(tab==='map'&&S.map&&typeof kakao!=='undefined')kakao.maps.event.trigger(S.map,'resize')
-  if(tab==='friends'){fetchFriends();fetchFriendRequests()}
+  if(tab==='friends'){S._reqHash='';S._friendsHash='';fetchFriends();fetchFriendRequests()}
 }
 let _toastTimer=null
-function showToast(msg, type='info') {
-  const el=document.getElementById('toast')
-  el.className='toast show'+(type?' '+type:''); el.textContent=msg
-  clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>{el.className='toast'},3000)
-}
+function showToast(msg,type='info'){const el=document.getElementById('toast');el.className='toast show'+(type?' '+type:'');el.textContent=msg;clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{el.className='toast'},3000)}
 function showProfileModal(){document.getElementById('profile-modal').classList.add('show')}
 function closeProfileModal(e){if(e.target===document.getElementById('profile-modal'))document.getElementById('profile-modal').classList.remove('show')}
-function toggleGlobalLocFromModal(){toggleGlobalLoc();document.getElementById('profile-modal').classList.remove('show')}
-function getAgo(ts){return Date.now()-ts}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 //  DOM Ready
-// ════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('chat-input')?.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}
-  })
-  document.getElementById('place-input')?.addEventListener('keydown',e=>{if(e.key==='Enter')searchPlace()})
-  document.getElementById('friend-id-input')?.addEventListener('keydown',e=>{if(e.key==='Enter')sendFriendReq()})
-  document.getElementById('chat-room-select')?.addEventListener('click',e=>{
+  document.getElementById('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}})
+  document.getElementById('place-input').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlace()})
+  document.getElementById('friend-id-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendFriendReq()})
+  document.getElementById('chat-room-select').addEventListener('click',e=>{
     const chip=e.target.closest('.room-chip')
-    if(chip&&chip.dataset.room) selectRoom(chip.dataset.room, chip.dataset.name||chip.dataset.room)
+    if(chip&&chip.dataset.room)selectRoom(chip.dataset.room,chip.dataset.name||chip.dataset.room)
   })
   initAuth()
-  if(Notification.permission==='default') Notification.requestPermission()
+  if(Notification.permission==='default')Notification.requestPermission()
 })
 </script>
 </body>
