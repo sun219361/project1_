@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-6f5498/checked-fetch.js
+// ../.wrangler/tmp/bundle-TQmzVj/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -27,71 +27,43 @@ globalThis.fetch = new Proxy(globalThis.fetch, {
   }
 });
 
-// .wrangler/tmp/pages-v33l1c/bundledWorker-0.729669974781844.mjs
-var __defProp2 = Object.defineProperty;
-var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
-var urls2 = /* @__PURE__ */ new Set();
-function checkURL2(request, init) {
-  const url = request instanceof URL ? request : new URL(
-    (typeof request === "string" ? new Request(request, init) : request).url
-  );
-  if (url.port && url.port !== "443" && url.protocol === "https:") {
-    if (!urls2.has(url.toString())) {
-      urls2.add(url.toString());
-      console.warn(
-        `WARNING: known issue with \`fetch()\` requests to custom HTTPS ports in published Workers:
- - ${url.toString()} - the custom port will be ignored when the Worker is published using the \`wrangler deploy\` command.
-`
-      );
-    }
-  }
-}
-__name(checkURL2, "checkURL");
-__name2(checkURL2, "checkURL");
-globalThis.fetch = new Proxy(globalThis.fetch, {
-  apply(target, thisArg, argArray) {
-    const [request, init] = argArray;
-    checkURL2(request, init);
-    return Reflect.apply(target, thisArg, argArray);
-  }
-});
+// _worker.js
 var kt = Object.defineProperty;
-var Je = /* @__PURE__ */ __name2((e) => {
+var Je = /* @__PURE__ */ __name((e) => {
   throw TypeError(e);
 }, "Je");
-var It = /* @__PURE__ */ __name2((e, t, r) => t in e ? kt(e, t, { enumerable: true, configurable: true, writable: true, value: r }) : e[t] = r, "It");
-var h = /* @__PURE__ */ __name2((e, t, r) => It(e, typeof t != "symbol" ? t + "" : t, r), "h");
-var _e = /* @__PURE__ */ __name2((e, t, r) => t.has(e) || Je("Cannot " + r), "_e");
-var d = /* @__PURE__ */ __name2((e, t, r) => (_e(e, t, "read from private field"), r ? r.call(e) : t.get(e)), "d");
-var g = /* @__PURE__ */ __name2((e, t, r) => t.has(e) ? Je("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, r), "g");
-var m = /* @__PURE__ */ __name2((e, t, r, a) => (_e(e, t, "write to private field"), a ? a.call(e, r) : t.set(e, r), r), "m");
-var b = /* @__PURE__ */ __name2((e, t, r) => (_e(e, t, "access private method"), r), "b");
-var Fe = /* @__PURE__ */ __name2((e, t, r, a) => ({ set _(o) {
-  m(e, t, o, r);
+var It = /* @__PURE__ */ __name((e, t, r) => t in e ? kt(e, t, { enumerable: true, configurable: true, writable: true, value: r }) : e[t] = r, "It");
+var h = /* @__PURE__ */ __name((e, t, r) => It(e, typeof t != "symbol" ? t + "" : t, r), "h");
+var _e = /* @__PURE__ */ __name((e, t, r) => t.has(e) || Je("Cannot " + r), "_e");
+var c = /* @__PURE__ */ __name((e, t, r) => (_e(e, t, "read from private field"), r ? r.call(e) : t.get(e)), "c");
+var g = /* @__PURE__ */ __name((e, t, r) => t.has(e) ? Je("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, r), "g");
+var m = /* @__PURE__ */ __name((e, t, r, a) => (_e(e, t, "write to private field"), a ? a.call(e, r) : t.set(e, r), r), "m");
+var b = /* @__PURE__ */ __name((e, t, r) => (_e(e, t, "access private method"), r), "b");
+var Fe = /* @__PURE__ */ __name((e, t, r, a) => ({ set _(s) {
+  m(e, t, s, r);
 }, get _() {
-  return d(e, t, a);
+  return c(e, t, a);
 } }), "Fe");
-var Ue = /* @__PURE__ */ __name2((e, t, r) => (a, o) => {
+var Ue = /* @__PURE__ */ __name((e, t, r) => (a, s) => {
   let n = -1;
-  return s(0);
-  async function s(i) {
+  return o(0);
+  async function o(i) {
     if (i <= n) throw new Error("next() called multiple times");
     n = i;
-    let l, c = false, p;
-    if (e[i] ? (p = e[i][0][0], a.req.routeIndex = i) : p = i === e.length && o || void 0, p) try {
-      l = await p(a, () => s(i + 1));
+    let l, d = false, p;
+    if (e[i] ? (p = e[i][0][0], a.req.routeIndex = i) : p = i === e.length && s || void 0, p) try {
+      l = await p(a, () => o(i + 1));
     } catch (u) {
-      if (u instanceof Error && t) a.error = u, l = await t(u, a), c = true;
+      if (u instanceof Error && t) a.error = u, l = await t(u, a), d = true;
       else throw u;
     }
     else a.finalized === false && r && (l = await r(a));
-    return l && (a.finalized === false || c) && (a.res = l), a;
+    return l && (a.finalized === false || d) && (a.res = l), a;
   }
-  __name(s, "s");
-  __name2(s, "s");
+  __name(o, "o");
 }, "Ue");
 var Ot = /* @__PURE__ */ Symbol();
-var Tt = /* @__PURE__ */ __name2(async (e, t = /* @__PURE__ */ Object.create(null)) => {
+var Tt = /* @__PURE__ */ __name(async (e, t = /* @__PURE__ */ Object.create(null)) => {
   const { all: r = false, dot: a = false } = t, n = (e instanceof lt ? e.raw.headers : e.headers).get("Content-Type");
   return n != null && n.startsWith("multipart/form-data") || n != null && n.startsWith("application/x-www-form-urlencoded") ? jt(e, { all: r, dot: a }) : {};
 }, "Tt");
@@ -100,55 +72,53 @@ async function jt(e, t) {
   return r ? Et(r, t) : {};
 }
 __name(jt, "jt");
-__name2(jt, "jt");
 function Et(e, t) {
   const r = /* @__PURE__ */ Object.create(null);
-  return e.forEach((a, o) => {
-    t.all || o.endsWith("[]") ? Rt(r, o, a) : r[o] = a;
-  }), t.dot && Object.entries(r).forEach(([a, o]) => {
-    a.includes(".") && (Lt(r, a, o), delete r[a]);
+  return e.forEach((a, s) => {
+    t.all || s.endsWith("[]") ? Rt(r, s, a) : r[s] = a;
+  }), t.dot && Object.entries(r).forEach(([a, s]) => {
+    a.includes(".") && (Lt(r, a, s), delete r[a]);
   }), r;
 }
 __name(Et, "Et");
-__name2(Et, "Et");
-var Rt = /* @__PURE__ */ __name2((e, t, r) => {
+var Rt = /* @__PURE__ */ __name((e, t, r) => {
   e[t] !== void 0 ? Array.isArray(e[t]) ? e[t].push(r) : e[t] = [e[t], r] : t.endsWith("[]") ? e[t] = [r] : e[t] = r;
 }, "Rt");
-var Lt = /* @__PURE__ */ __name2((e, t, r) => {
+var Lt = /* @__PURE__ */ __name((e, t, r) => {
   if (/(?:^|\.)__proto__\./.test(t)) return;
   let a = e;
-  const o = t.split(".");
-  o.forEach((n, s) => {
-    s === o.length - 1 ? a[n] = r : ((!a[n] || typeof a[n] != "object" || Array.isArray(a[n]) || a[n] instanceof File) && (a[n] = /* @__PURE__ */ Object.create(null)), a = a[n]);
+  const s = t.split(".");
+  s.forEach((n, o) => {
+    o === s.length - 1 ? a[n] = r : ((!a[n] || typeof a[n] != "object" || Array.isArray(a[n]) || a[n] instanceof File) && (a[n] = /* @__PURE__ */ Object.create(null)), a = a[n]);
   });
 }, "Lt");
-var at = /* @__PURE__ */ __name2((e) => {
+var at = /* @__PURE__ */ __name((e) => {
   const t = e.split("/");
   return t[0] === "" && t.shift(), t;
 }, "at");
-var Nt = /* @__PURE__ */ __name2((e) => {
-  const { groups: t, path: r } = Pt(e), a = at(r);
-  return At(a, t);
+var Nt = /* @__PURE__ */ __name((e) => {
+  const { groups: t, path: r } = At(e), a = at(r);
+  return Pt(a, t);
 }, "Nt");
-var Pt = /* @__PURE__ */ __name2((e) => {
+var At = /* @__PURE__ */ __name((e) => {
   const t = [];
   return e = e.replace(/\{[^}]+\}/g, (r, a) => {
-    const o = `@${a}`;
-    return t.push([o, r]), o;
+    const s = `@${a}`;
+    return t.push([s, r]), s;
   }), { groups: t, path: e };
-}, "Pt");
-var At = /* @__PURE__ */ __name2((e, t) => {
+}, "At");
+var Pt = /* @__PURE__ */ __name((e, t) => {
   for (let r = t.length - 1; r >= 0; r--) {
     const [a] = t[r];
-    for (let o = e.length - 1; o >= 0; o--) if (e[o].includes(a)) {
-      e[o] = e[o].replace(a, t[r][1]);
+    for (let s = e.length - 1; s >= 0; s--) if (e[s].includes(a)) {
+      e[s] = e[s].replace(a, t[r][1]);
       break;
     }
   }
   return e;
-}, "At");
+}, "Pt");
 var Re = {};
-var zt = /* @__PURE__ */ __name2((e, t) => {
+var Mt = /* @__PURE__ */ __name((e, t) => {
   if (e === "*") return "*";
   const r = e.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
   if (r) {
@@ -156,8 +126,8 @@ var zt = /* @__PURE__ */ __name2((e, t) => {
     return Re[a] || (r[2] ? Re[a] = t && t[0] !== ":" && t[0] !== "*" ? [a, r[1], new RegExp(`^${r[2]}(?=/${t})`)] : [e, r[1], new RegExp(`^${r[2]}$`)] : Re[a] = [e, r[1], true]), Re[a];
   }
   return null;
-}, "zt");
-var Ke = /* @__PURE__ */ __name2((e, t) => {
+}, "Mt");
+var De = /* @__PURE__ */ __name((e, t) => {
   try {
     return t(e);
   } catch {
@@ -169,105 +139,102 @@ var Ke = /* @__PURE__ */ __name2((e, t) => {
       }
     });
   }
-}, "Ke");
-var Ct = /* @__PURE__ */ __name2((e) => Ke(e, decodeURI), "Ct");
-var ot = /* @__PURE__ */ __name2((e) => {
+}, "De");
+var zt = /* @__PURE__ */ __name((e) => De(e, decodeURI), "zt");
+var st = /* @__PURE__ */ __name((e) => {
   const t = e.url, r = t.indexOf("/", t.indexOf(":") + 4);
   let a = r;
   for (; a < t.length; a++) {
-    const o = t.charCodeAt(a);
-    if (o === 37) {
-      const n = t.indexOf("?", a), s = t.indexOf("#", a), i = n === -1 ? s === -1 ? void 0 : s : s === -1 ? n : Math.min(n, s), l = t.slice(r, i);
-      return Ct(l.includes("%25") ? l.replace(/%25/g, "%2525") : l);
-    } else if (o === 63 || o === 35) break;
+    const s = t.charCodeAt(a);
+    if (s === 37) {
+      const n = t.indexOf("?", a), o = t.indexOf("#", a), i = n === -1 ? o === -1 ? void 0 : o : o === -1 ? n : Math.min(n, o), l = t.slice(r, i);
+      return zt(l.includes("%25") ? l.replace(/%25/g, "%2525") : l);
+    } else if (s === 63 || s === 35) break;
   }
   return t.slice(r, a);
-}, "ot");
-var Mt = /* @__PURE__ */ __name2((e) => {
-  const t = ot(e);
+}, "st");
+var Ct = /* @__PURE__ */ __name((e) => {
+  const t = st(e);
   return t.length > 1 && t.at(-1) === "/" ? t.slice(0, -1) : t;
-}, "Mt");
-var se = /* @__PURE__ */ __name2((e, t, ...r) => (r.length && (t = se(t, ...r)), `${(e == null ? void 0 : e[0]) === "/" ? "" : "/"}${e}${t === "/" ? "" : `${(e == null ? void 0 : e.at(-1)) === "/" ? "" : "/"}${(t == null ? void 0 : t[0]) === "/" ? t.slice(1) : t}`}`), "se");
-var nt = /* @__PURE__ */ __name2((e) => {
+}, "Ct");
+var oe = /* @__PURE__ */ __name((e, t, ...r) => (r.length && (t = oe(t, ...r)), `${(e == null ? void 0 : e[0]) === "/" ? "" : "/"}${e}${t === "/" ? "" : `${(e == null ? void 0 : e.at(-1)) === "/" ? "" : "/"}${(t == null ? void 0 : t[0]) === "/" ? t.slice(1) : t}`}`), "oe");
+var nt = /* @__PURE__ */ __name((e) => {
   if (e.charCodeAt(e.length - 1) !== 63 || !e.includes(":")) return null;
   const t = e.split("/"), r = [];
   let a = "";
-  return t.forEach((o) => {
-    if (o !== "" && !/\:/.test(o)) a += "/" + o;
-    else if (/\:/.test(o)) if (/\?/.test(o)) {
+  return t.forEach((s) => {
+    if (s !== "" && !/\:/.test(s)) a += "/" + s;
+    else if (/\:/.test(s)) if (/\?/.test(s)) {
       r.length === 0 && a === "" ? r.push("/") : r.push(a);
-      const n = o.replace("?", "");
+      const n = s.replace("?", "");
       a += "/" + n, r.push(a);
-    } else a += "/" + o;
-  }), r.filter((o, n, s) => s.indexOf(o) === n);
+    } else a += "/" + s;
+  }), r.filter((s, n, o) => o.indexOf(s) === n);
 }, "nt");
-var $e = /* @__PURE__ */ __name2((e) => /[%+]/.test(e) ? (e.indexOf("+") !== -1 && (e = e.replace(/\+/g, " ")), e.indexOf("%") !== -1 ? Ke(e, it) : e) : e, "$e");
-var st = /* @__PURE__ */ __name2((e, t, r) => {
+var $e = /* @__PURE__ */ __name((e) => /[%+]/.test(e) ? (e.indexOf("+") !== -1 && (e = e.replace(/\+/g, " ")), e.indexOf("%") !== -1 ? De(e, it) : e) : e, "$e");
+var ot = /* @__PURE__ */ __name((e, t, r) => {
   let a;
   if (!r && t && !/[%+]/.test(t)) {
-    let s = e.indexOf("?", 8);
-    if (s === -1) return;
-    for (e.startsWith(t, s + 1) || (s = e.indexOf(`&${t}`, s + 1)); s !== -1; ) {
-      const i = e.charCodeAt(s + t.length + 1);
+    let o = e.indexOf("?", 8);
+    if (o === -1) return;
+    for (e.startsWith(t, o + 1) || (o = e.indexOf(`&${t}`, o + 1)); o !== -1; ) {
+      const i = e.charCodeAt(o + t.length + 1);
       if (i === 61) {
-        const l = s + t.length + 2, c = e.indexOf("&", l);
-        return $e(e.slice(l, c === -1 ? void 0 : c));
+        const l = o + t.length + 2, d = e.indexOf("&", l);
+        return $e(e.slice(l, d === -1 ? void 0 : d));
       } else if (i == 38 || isNaN(i)) return "";
-      s = e.indexOf(`&${t}`, s + 1);
+      o = e.indexOf(`&${t}`, o + 1);
     }
     if (a = /[%+]/.test(e), !a) return;
   }
-  const o = {};
+  const s = {};
   a ?? (a = /[%+]/.test(e));
   let n = e.indexOf("?", 8);
   for (; n !== -1; ) {
-    const s = e.indexOf("&", n + 1);
+    const o = e.indexOf("&", n + 1);
     let i = e.indexOf("=", n);
-    i > s && s !== -1 && (i = -1);
-    let l = e.slice(n + 1, i === -1 ? s === -1 ? void 0 : s : i);
-    if (a && (l = $e(l)), n = s, l === "") continue;
-    let c;
-    i === -1 ? c = "" : (c = e.slice(i + 1, s === -1 ? void 0 : s), a && (c = $e(c))), r ? (o[l] && Array.isArray(o[l]) || (o[l] = []), o[l].push(c)) : o[l] ?? (o[l] = c);
+    i > o && o !== -1 && (i = -1);
+    let l = e.slice(n + 1, i === -1 ? o === -1 ? void 0 : o : i);
+    if (a && (l = $e(l)), n = o, l === "") continue;
+    let d;
+    i === -1 ? d = "" : (d = e.slice(i + 1, o === -1 ? void 0 : o), a && (d = $e(d))), r ? (s[l] && Array.isArray(s[l]) || (s[l] = []), s[l].push(d)) : s[l] ?? (s[l] = d);
   }
-  return t ? o[t] : o;
-}, "st");
-var Bt = st;
-var _t = /* @__PURE__ */ __name2((e, t) => st(e, t, true), "_t");
+  return t ? s[t] : s;
+}, "ot");
+var Bt = ot;
+var _t = /* @__PURE__ */ __name((e, t) => ot(e, t, true), "_t");
 var it = decodeURIComponent;
-var We = /* @__PURE__ */ __name2((e) => Ke(e, it), "We");
-var de;
+var We = /* @__PURE__ */ __name((e) => De(e, it), "We");
+var ce;
 var L;
 var H;
-var dt;
 var ct;
+var dt;
 var He;
-var V;
+var K;
 var Xe;
 var lt = (Xe = class {
   static {
     __name(this, "Xe");
   }
-  static {
-    __name2(this, "Xe");
-  }
   constructor(e, t = "/", r = [[]]) {
     g(this, H);
     h(this, "raw");
-    g(this, de);
+    g(this, ce);
     g(this, L);
     h(this, "routeIndex", 0);
     h(this, "path");
     h(this, "bodyCache", {});
-    g(this, V, (e2) => {
+    g(this, K, (e2) => {
       const { bodyCache: t2, raw: r2 } = this, a = t2[e2];
       if (a) return a;
-      const o = Object.keys(t2)[0];
-      return o ? t2[o].then((n) => (o === "json" && (n = JSON.stringify(n)), new Response(n)[e2]())) : t2[e2] = r2[e2]();
+      const s = Object.keys(t2)[0];
+      return s ? t2[s].then((n) => (s === "json" && (n = JSON.stringify(n)), new Response(n)[e2]())) : t2[e2] = r2[e2]();
     });
-    this.raw = e, this.path = t, m(this, L, r), m(this, de, {});
+    this.raw = e, this.path = t, m(this, L, r), m(this, ce, {});
   }
   param(e) {
-    return e ? b(this, H, dt).call(this, e) : b(this, H, ct).call(this);
+    return e ? b(this, H, ct).call(this, e) : b(this, H, dt).call(this);
   }
   query(e) {
     return Bt(this.url, e);
@@ -286,25 +253,25 @@ var lt = (Xe = class {
     return Tt(this, e);
   }
   json() {
-    return d(this, V).call(this, "text").then((e) => JSON.parse(e));
+    return c(this, K).call(this, "text").then((e) => JSON.parse(e));
   }
   text() {
-    return d(this, V).call(this, "text");
+    return c(this, K).call(this, "text");
   }
   arrayBuffer() {
-    return d(this, V).call(this, "arrayBuffer");
+    return c(this, K).call(this, "arrayBuffer");
   }
   blob() {
-    return d(this, V).call(this, "blob");
+    return c(this, K).call(this, "blob");
   }
   formData() {
-    return d(this, V).call(this, "formData");
+    return c(this, K).call(this, "formData");
   }
   addValidatedData(e, t) {
-    d(this, de)[e] = t;
+    c(this, ce)[e] = t;
   }
   valid(e) {
-    return d(this, de)[e];
+    return c(this, ce)[e];
   }
   get url() {
     return this.raw.url;
@@ -313,40 +280,40 @@ var lt = (Xe = class {
     return this.raw.method;
   }
   get [Ot]() {
-    return d(this, L);
+    return c(this, L);
   }
   get matchedRoutes() {
-    return d(this, L)[0].map(([[, e]]) => e);
+    return c(this, L)[0].map(([[, e]]) => e);
   }
   get routePath() {
-    return d(this, L)[0].map(([[, e]]) => e)[this.routeIndex].path;
+    return c(this, L)[0].map(([[, e]]) => e)[this.routeIndex].path;
   }
-}, de = /* @__PURE__ */ new WeakMap(), L = /* @__PURE__ */ new WeakMap(), H = /* @__PURE__ */ new WeakSet(), dt = /* @__PURE__ */ __name2(function(e) {
-  const t = d(this, L)[0][this.routeIndex][1][e], r = b(this, H, He).call(this, t);
+}, ce = /* @__PURE__ */ new WeakMap(), L = /* @__PURE__ */ new WeakMap(), H = /* @__PURE__ */ new WeakSet(), ct = /* @__PURE__ */ __name(function(e) {
+  const t = c(this, L)[0][this.routeIndex][1][e], r = b(this, H, He).call(this, t);
   return r && /\%/.test(r) ? We(r) : r;
-}, "dt"), ct = /* @__PURE__ */ __name2(function() {
-  const e = {}, t = Object.keys(d(this, L)[0][this.routeIndex][1]);
+}, "ct"), dt = /* @__PURE__ */ __name(function() {
+  const e = {}, t = Object.keys(c(this, L)[0][this.routeIndex][1]);
   for (const r of t) {
-    const a = b(this, H, He).call(this, d(this, L)[0][this.routeIndex][1][r]);
+    const a = b(this, H, He).call(this, c(this, L)[0][this.routeIndex][1][r]);
     a !== void 0 && (e[r] = /\%/.test(a) ? We(a) : a);
   }
   return e;
-}, "ct"), He = /* @__PURE__ */ __name2(function(e) {
-  return d(this, L)[1] ? d(this, L)[1][e] : e;
-}, "He"), V = /* @__PURE__ */ new WeakMap(), Xe);
+}, "dt"), He = /* @__PURE__ */ __name(function(e) {
+  return c(this, L)[1] ? c(this, L)[1][e] : e;
+}, "He"), K = /* @__PURE__ */ new WeakMap(), Xe);
 var $t = { Stringify: 1 };
-var pt = /* @__PURE__ */ __name2(async (e, t, r, a, o) => {
+var pt = /* @__PURE__ */ __name(async (e, t, r, a, s) => {
   typeof e == "object" && !(e instanceof String) && (e instanceof Promise || (e = e.toString()), e instanceof Promise && (e = await e));
   const n = e.callbacks;
-  return n != null && n.length ? (o ? o[0] += e : o = [e], Promise.all(n.map((i) => i({ phase: t, buffer: o, context: a }))).then((i) => Promise.all(i.filter(Boolean).map((l) => pt(l, t, false, a, o))).then(() => o[0]))) : Promise.resolve(e);
+  return n != null && n.length ? (s ? s[0] += e : s = [e], Promise.all(n.map((i) => i({ phase: t, buffer: s, context: a }))).then((i) => Promise.all(i.filter(Boolean).map((l) => pt(l, t, false, a, s))).then(() => s[0]))) : Promise.resolve(e);
 }, "pt");
 var qt = "text/plain; charset=UTF-8";
-var qe = /* @__PURE__ */ __name2((e, t) => ({ "Content-Type": e, ...t }), "qe");
-var xe = /* @__PURE__ */ __name2((e, t) => new Response(e, t), "xe");
+var qe = /* @__PURE__ */ __name((e, t) => ({ "Content-Type": e, ...t }), "qe");
+var xe = /* @__PURE__ */ __name((e, t) => new Response(e, t), "xe");
 var ke;
 var Ie;
 var B;
-var ce;
+var de;
 var _;
 var j;
 var Oe;
@@ -355,25 +322,22 @@ var ue;
 var X;
 var Te;
 var je;
-var D;
+var V;
 var ie;
 var Qe;
 var Ht = (Qe = class {
   static {
     __name(this, "Qe");
   }
-  static {
-    __name2(this, "Qe");
-  }
   constructor(e, t) {
-    g(this, D);
+    g(this, V);
     g(this, ke);
     g(this, Ie);
     h(this, "env", {});
     g(this, B);
     h(this, "finalized", false);
     h(this, "error");
-    g(this, ce);
+    g(this, de);
     g(this, _);
     g(this, j);
     g(this, Oe);
@@ -382,106 +346,103 @@ var Ht = (Qe = class {
     g(this, X);
     g(this, Te);
     g(this, je);
-    h(this, "render", (...e2) => (d(this, pe) ?? m(this, pe, (t2) => this.html(t2)), d(this, pe).call(this, ...e2)));
+    h(this, "render", (...e2) => (c(this, pe) ?? m(this, pe, (t2) => this.html(t2)), c(this, pe).call(this, ...e2)));
     h(this, "setLayout", (e2) => m(this, Oe, e2));
-    h(this, "getLayout", () => d(this, Oe));
+    h(this, "getLayout", () => c(this, Oe));
     h(this, "setRenderer", (e2) => {
       m(this, pe, e2);
     });
     h(this, "header", (e2, t2, r) => {
-      this.finalized && m(this, j, xe(d(this, j).body, d(this, j)));
-      const a = d(this, j) ? d(this, j).headers : d(this, X) ?? m(this, X, new Headers());
+      this.finalized && m(this, j, xe(c(this, j).body, c(this, j)));
+      const a = c(this, j) ? c(this, j).headers : c(this, X) ?? m(this, X, new Headers());
       t2 === void 0 ? a.delete(e2) : r != null && r.append ? a.append(e2, t2) : a.set(e2, t2);
     });
     h(this, "status", (e2) => {
-      m(this, ce, e2);
+      m(this, de, e2);
     });
     h(this, "set", (e2, t2) => {
-      d(this, B) ?? m(this, B, /* @__PURE__ */ new Map()), d(this, B).set(e2, t2);
+      c(this, B) ?? m(this, B, /* @__PURE__ */ new Map()), c(this, B).set(e2, t2);
     });
-    h(this, "get", (e2) => d(this, B) ? d(this, B).get(e2) : void 0);
-    h(this, "newResponse", (...e2) => b(this, D, ie).call(this, ...e2));
-    h(this, "body", (e2, t2, r) => b(this, D, ie).call(this, e2, t2, r));
-    h(this, "text", (e2, t2, r) => !d(this, X) && !d(this, ce) && !t2 && !r && !this.finalized ? new Response(e2) : b(this, D, ie).call(this, e2, t2, qe(qt, r)));
-    h(this, "json", (e2, t2, r) => b(this, D, ie).call(this, JSON.stringify(e2), t2, qe("application/json", r)));
+    h(this, "get", (e2) => c(this, B) ? c(this, B).get(e2) : void 0);
+    h(this, "newResponse", (...e2) => b(this, V, ie).call(this, ...e2));
+    h(this, "body", (e2, t2, r) => b(this, V, ie).call(this, e2, t2, r));
+    h(this, "text", (e2, t2, r) => !c(this, X) && !c(this, de) && !t2 && !r && !this.finalized ? new Response(e2) : b(this, V, ie).call(this, e2, t2, qe(qt, r)));
+    h(this, "json", (e2, t2, r) => b(this, V, ie).call(this, JSON.stringify(e2), t2, qe("application/json", r)));
     h(this, "html", (e2, t2, r) => {
-      const a = /* @__PURE__ */ __name2((o) => b(this, D, ie).call(this, o, t2, qe("text/html; charset=UTF-8", r)), "a");
+      const a = /* @__PURE__ */ __name((s) => b(this, V, ie).call(this, s, t2, qe("text/html; charset=UTF-8", r)), "a");
       return typeof e2 == "object" ? pt(e2, $t.Stringify, false, {}).then(a) : a(e2);
     });
     h(this, "redirect", (e2, t2) => {
       const r = String(e2);
       return this.header("Location", /[^\x00-\xFF]/.test(r) ? encodeURI(r) : r), this.newResponse(null, t2 ?? 302);
     });
-    h(this, "notFound", () => (d(this, ue) ?? m(this, ue, () => xe()), d(this, ue).call(this, this)));
+    h(this, "notFound", () => (c(this, ue) ?? m(this, ue, () => xe()), c(this, ue).call(this, this)));
     m(this, ke, e), t && (m(this, _, t.executionCtx), this.env = t.env, m(this, ue, t.notFoundHandler), m(this, je, t.path), m(this, Te, t.matchResult));
   }
   get req() {
-    return d(this, Ie) ?? m(this, Ie, new lt(d(this, ke), d(this, je), d(this, Te))), d(this, Ie);
+    return c(this, Ie) ?? m(this, Ie, new lt(c(this, ke), c(this, je), c(this, Te))), c(this, Ie);
   }
   get event() {
-    if (d(this, _) && "respondWith" in d(this, _)) return d(this, _);
+    if (c(this, _) && "respondWith" in c(this, _)) return c(this, _);
     throw Error("This context has no FetchEvent");
   }
   get executionCtx() {
-    if (d(this, _)) return d(this, _);
+    if (c(this, _)) return c(this, _);
     throw Error("This context has no ExecutionContext");
   }
   get res() {
-    return d(this, j) || m(this, j, xe(null, { headers: d(this, X) ?? m(this, X, new Headers()) }));
+    return c(this, j) || m(this, j, xe(null, { headers: c(this, X) ?? m(this, X, new Headers()) }));
   }
   set res(e) {
-    if (d(this, j) && e) {
+    if (c(this, j) && e) {
       e = xe(e.body, e);
-      for (const [t, r] of d(this, j).headers.entries()) if (t !== "content-type") if (t === "set-cookie") {
-        const a = d(this, j).headers.getSetCookie();
+      for (const [t, r] of c(this, j).headers.entries()) if (t !== "content-type") if (t === "set-cookie") {
+        const a = c(this, j).headers.getSetCookie();
         e.headers.delete("set-cookie");
-        for (const o of a) e.headers.append("set-cookie", o);
+        for (const s of a) e.headers.append("set-cookie", s);
       } else e.headers.set(t, r);
     }
     m(this, j, e), this.finalized = true;
   }
   get var() {
-    return d(this, B) ? Object.fromEntries(d(this, B)) : {};
+    return c(this, B) ? Object.fromEntries(c(this, B)) : {};
   }
-}, ke = /* @__PURE__ */ new WeakMap(), Ie = /* @__PURE__ */ new WeakMap(), B = /* @__PURE__ */ new WeakMap(), ce = /* @__PURE__ */ new WeakMap(), _ = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap(), Oe = /* @__PURE__ */ new WeakMap(), pe = /* @__PURE__ */ new WeakMap(), ue = /* @__PURE__ */ new WeakMap(), X = /* @__PURE__ */ new WeakMap(), Te = /* @__PURE__ */ new WeakMap(), je = /* @__PURE__ */ new WeakMap(), D = /* @__PURE__ */ new WeakSet(), ie = /* @__PURE__ */ __name2(function(e, t, r) {
-  const a = d(this, j) ? new Headers(d(this, j).headers) : d(this, X) ?? new Headers();
+}, ke = /* @__PURE__ */ new WeakMap(), Ie = /* @__PURE__ */ new WeakMap(), B = /* @__PURE__ */ new WeakMap(), de = /* @__PURE__ */ new WeakMap(), _ = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap(), Oe = /* @__PURE__ */ new WeakMap(), pe = /* @__PURE__ */ new WeakMap(), ue = /* @__PURE__ */ new WeakMap(), X = /* @__PURE__ */ new WeakMap(), Te = /* @__PURE__ */ new WeakMap(), je = /* @__PURE__ */ new WeakMap(), V = /* @__PURE__ */ new WeakSet(), ie = /* @__PURE__ */ __name(function(e, t, r) {
+  const a = c(this, j) ? new Headers(c(this, j).headers) : c(this, X) ?? new Headers();
   if (typeof t == "object" && "headers" in t) {
     const n = t.headers instanceof Headers ? t.headers : new Headers(t.headers);
-    for (const [s, i] of n) s.toLowerCase() === "set-cookie" ? a.append(s, i) : a.set(s, i);
+    for (const [o, i] of n) o.toLowerCase() === "set-cookie" ? a.append(o, i) : a.set(o, i);
   }
-  if (r) for (const [n, s] of Object.entries(r)) if (typeof s == "string") a.set(n, s);
+  if (r) for (const [n, o] of Object.entries(r)) if (typeof o == "string") a.set(n, o);
   else {
     a.delete(n);
-    for (const i of s) a.append(n, i);
+    for (const i of o) a.append(n, i);
   }
-  const o = typeof t == "number" ? t : (t == null ? void 0 : t.status) ?? d(this, ce);
-  return xe(e, { status: o, headers: a });
+  const s = typeof t == "number" ? t : (t == null ? void 0 : t.status) ?? c(this, de);
+  return xe(e, { status: s, headers: a });
 }, "ie"), Qe);
 var S = "ALL";
-var Kt = "all";
-var Vt = ["get", "post", "put", "delete", "options", "patch"];
+var Dt = "all";
+var Kt = ["get", "post", "put", "delete", "options", "patch"];
 var ut = "Can not add a route since the matcher is already built.";
 var mt = class extends Error {
   static {
     __name(this, "mt");
   }
-  static {
-    __name2(this, "mt");
-  }
 };
-var Dt = "__COMPOSED_HANDLER";
-var Jt = /* @__PURE__ */ __name2((e) => e.text("404 Not Found", 404), "Jt");
-var Ge = /* @__PURE__ */ __name2((e, t) => {
+var Vt = "__COMPOSED_HANDLER";
+var Jt = /* @__PURE__ */ __name((e) => e.text("404 Not Found", 404), "Jt");
+var Ge = /* @__PURE__ */ __name((e, t) => {
   if ("getResponse" in e) {
     const r = e.getResponse();
     return t.newResponse(r.body, r);
   }
   return console.error(e), t.text("Internal Server Error", 500);
 }, "Ge");
-var P;
+var A;
 var k;
 var ft;
-var A;
+var P;
 var G;
 var Le;
 var Ne;
@@ -489,9 +450,6 @@ var me;
 var Ft = (me = class {
   static {
     __name(this, "me");
-  }
-  static {
-    __name2(this, "me");
   }
   constructor(t = {}) {
     g(this, k);
@@ -507,247 +465,237 @@ var Ft = (me = class {
     h(this, "router");
     h(this, "getPath");
     h(this, "_basePath", "/");
-    g(this, P, "/");
+    g(this, A, "/");
     h(this, "routes", []);
-    g(this, A, Jt);
+    g(this, P, Jt);
     h(this, "errorHandler", Ge);
     h(this, "onError", (t2) => (this.errorHandler = t2, this));
-    h(this, "notFound", (t2) => (m(this, A, t2), this));
+    h(this, "notFound", (t2) => (m(this, P, t2), this));
     h(this, "fetch", (t2, ...r) => b(this, k, Ne).call(this, t2, r[1], r[0], t2.method));
-    h(this, "request", (t2, r, a2, o2) => t2 instanceof Request ? this.fetch(r ? new Request(t2, r) : t2, a2, o2) : (t2 = t2.toString(), this.fetch(new Request(/^https?:\/\//.test(t2) ? t2 : `http://localhost${se("/", t2)}`, r), a2, o2)));
+    h(this, "request", (t2, r, a2, s2) => t2 instanceof Request ? this.fetch(r ? new Request(t2, r) : t2, a2, s2) : (t2 = t2.toString(), this.fetch(new Request(/^https?:\/\//.test(t2) ? t2 : `http://localhost${oe("/", t2)}`, r), a2, s2)));
     h(this, "fire", () => {
       addEventListener("fetch", (t2) => {
         t2.respondWith(b(this, k, Ne).call(this, t2.request, t2, void 0, t2.request.method));
       });
     });
-    [...Vt, Kt].forEach((n) => {
-      this[n] = (s, ...i) => (typeof s == "string" ? m(this, P, s) : b(this, k, G).call(this, n, d(this, P), s), i.forEach((l) => {
-        b(this, k, G).call(this, n, d(this, P), l);
+    [...Kt, Dt].forEach((n) => {
+      this[n] = (o, ...i) => (typeof o == "string" ? m(this, A, o) : b(this, k, G).call(this, n, c(this, A), o), i.forEach((l) => {
+        b(this, k, G).call(this, n, c(this, A), l);
       }), this);
-    }), this.on = (n, s, ...i) => {
-      for (const l of [s].flat()) {
-        m(this, P, l);
-        for (const c of [n].flat()) i.map((p) => {
-          b(this, k, G).call(this, c.toUpperCase(), d(this, P), p);
+    }), this.on = (n, o, ...i) => {
+      for (const l of [o].flat()) {
+        m(this, A, l);
+        for (const d of [n].flat()) i.map((p) => {
+          b(this, k, G).call(this, d.toUpperCase(), c(this, A), p);
         });
       }
       return this;
-    }, this.use = (n, ...s) => (typeof n == "string" ? m(this, P, n) : (m(this, P, "*"), s.unshift(n)), s.forEach((i) => {
-      b(this, k, G).call(this, S, d(this, P), i);
+    }, this.use = (n, ...o) => (typeof n == "string" ? m(this, A, n) : (m(this, A, "*"), o.unshift(n)), o.forEach((i) => {
+      b(this, k, G).call(this, S, c(this, A), i);
     }), this);
-    const { strict: a, ...o } = t;
-    Object.assign(this, o), this.getPath = a ?? true ? t.getPath ?? ot : Mt;
+    const { strict: a, ...s } = t;
+    Object.assign(this, s), this.getPath = a ?? true ? t.getPath ?? st : Ct;
   }
   route(t, r) {
     const a = this.basePath(t);
-    return r.routes.map((o) => {
-      var s;
+    return r.routes.map((s) => {
+      var o;
       let n;
-      r.errorHandler === Ge ? n = o.handler : (n = /* @__PURE__ */ __name2(async (i, l) => (await Ue([], r.errorHandler)(i, () => o.handler(i, l))).res, "n"), n[Dt] = o.handler), b(s = a, k, G).call(s, o.method, o.path, n);
+      r.errorHandler === Ge ? n = s.handler : (n = /* @__PURE__ */ __name(async (i, l) => (await Ue([], r.errorHandler)(i, () => s.handler(i, l))).res, "n"), n[Vt] = s.handler), b(o = a, k, G).call(o, s.method, s.path, n);
     }), this;
   }
   basePath(t) {
     const r = b(this, k, ft).call(this);
-    return r._basePath = se(this._basePath, t), r;
+    return r._basePath = oe(this._basePath, t), r;
   }
   mount(t, r, a) {
-    let o, n;
-    a && (typeof a == "function" ? n = a : (n = a.optionHandler, a.replaceRequest === false ? o = /* @__PURE__ */ __name2((l) => l, "o") : o = a.replaceRequest));
-    const s = n ? (l) => {
-      const c = n(l);
-      return Array.isArray(c) ? c : [c];
+    let s, n;
+    a && (typeof a == "function" ? n = a : (n = a.optionHandler, a.replaceRequest === false ? s = /* @__PURE__ */ __name((l) => l, "s") : s = a.replaceRequest));
+    const o = n ? (l) => {
+      const d = n(l);
+      return Array.isArray(d) ? d : [d];
     } : (l) => {
-      let c;
+      let d;
       try {
-        c = l.executionCtx;
+        d = l.executionCtx;
       } catch {
       }
-      return [l.env, c];
+      return [l.env, d];
     };
-    o || (o = (() => {
-      const l = se(this._basePath, t), c = l === "/" ? 0 : l.length;
+    s || (s = (() => {
+      const l = oe(this._basePath, t), d = l === "/" ? 0 : l.length;
       return (p) => {
         const u = new URL(p.url);
-        return u.pathname = u.pathname.slice(c) || "/", new Request(u, p);
+        return u.pathname = u.pathname.slice(d) || "/", new Request(u, p);
       };
     })());
-    const i = /* @__PURE__ */ __name2(async (l, c) => {
-      const p = await r(o(l.req.raw), ...s(l));
+    const i = /* @__PURE__ */ __name(async (l, d) => {
+      const p = await r(s(l.req.raw), ...o(l));
       if (p) return p;
-      await c();
+      await d();
     }, "i");
-    return b(this, k, G).call(this, S, se(t, "*"), i), this;
+    return b(this, k, G).call(this, S, oe(t, "*"), i), this;
   }
-}, P = /* @__PURE__ */ new WeakMap(), k = /* @__PURE__ */ new WeakSet(), ft = /* @__PURE__ */ __name2(function() {
+}, A = /* @__PURE__ */ new WeakMap(), k = /* @__PURE__ */ new WeakSet(), ft = /* @__PURE__ */ __name(function() {
   const t = new me({ router: this.router, getPath: this.getPath });
-  return t.errorHandler = this.errorHandler, m(t, A, d(this, A)), t.routes = this.routes, t;
-}, "ft"), A = /* @__PURE__ */ new WeakMap(), G = /* @__PURE__ */ __name2(function(t, r, a) {
-  t = t.toUpperCase(), r = se(this._basePath, r);
-  const o = { basePath: this._basePath, path: r, method: t, handler: a };
-  this.router.add(t, r, [a, o]), this.routes.push(o);
-}, "G"), Le = /* @__PURE__ */ __name2(function(t, r) {
+  return t.errorHandler = this.errorHandler, m(t, P, c(this, P)), t.routes = this.routes, t;
+}, "ft"), P = /* @__PURE__ */ new WeakMap(), G = /* @__PURE__ */ __name(function(t, r, a) {
+  t = t.toUpperCase(), r = oe(this._basePath, r);
+  const s = { basePath: this._basePath, path: r, method: t, handler: a };
+  this.router.add(t, r, [a, s]), this.routes.push(s);
+}, "G"), Le = /* @__PURE__ */ __name(function(t, r) {
   if (t instanceof Error) return this.errorHandler(t, r);
   throw t;
-}, "Le"), Ne = /* @__PURE__ */ __name2(function(t, r, a, o) {
-  if (o === "HEAD") return (async () => new Response(null, await b(this, k, Ne).call(this, t, r, a, "GET")))();
-  const n = this.getPath(t, { env: a }), s = this.router.match(o, n), i = new Ht(t, { path: n, matchResult: s, env: a, executionCtx: r, notFoundHandler: d(this, A) });
-  if (s[0].length === 1) {
-    let c;
+}, "Le"), Ne = /* @__PURE__ */ __name(function(t, r, a, s) {
+  if (s === "HEAD") return (async () => new Response(null, await b(this, k, Ne).call(this, t, r, a, "GET")))();
+  const n = this.getPath(t, { env: a }), o = this.router.match(s, n), i = new Ht(t, { path: n, matchResult: o, env: a, executionCtx: r, notFoundHandler: c(this, P) });
+  if (o[0].length === 1) {
+    let d;
     try {
-      c = s[0][0][0][0](i, async () => {
-        i.res = await d(this, A).call(this, i);
+      d = o[0][0][0][0](i, async () => {
+        i.res = await c(this, P).call(this, i);
       });
     } catch (p) {
       return b(this, k, Le).call(this, p, i);
     }
-    return c instanceof Promise ? c.then((p) => p || (i.finalized ? i.res : d(this, A).call(this, i))).catch((p) => b(this, k, Le).call(this, p, i)) : c ?? d(this, A).call(this, i);
+    return d instanceof Promise ? d.then((p) => p || (i.finalized ? i.res : c(this, P).call(this, i))).catch((p) => b(this, k, Le).call(this, p, i)) : d ?? c(this, P).call(this, i);
   }
-  const l = Ue(s[0], this.errorHandler, d(this, A));
+  const l = Ue(o[0], this.errorHandler, c(this, P));
   return (async () => {
     try {
-      const c = await l(i);
-      if (!c.finalized) throw new Error("Context is not finalized. Did you forget to return a Response object or `await next()`?");
-      return c.res;
-    } catch (c) {
-      return b(this, k, Le).call(this, c, i);
+      const d = await l(i);
+      if (!d.finalized) throw new Error("Context is not finalized. Did you forget to return a Response object or `await next()`?");
+      return d.res;
+    } catch (d) {
+      return b(this, k, Le).call(this, d, i);
     }
   })();
 }, "Ne"), me);
 var ht = [];
 function Ut(e, t) {
-  const r = this.buildAllMatchers(), a = /* @__PURE__ */ __name2(((o, n) => {
-    const s = r[o] || r[S], i = s[2][n];
+  const r = this.buildAllMatchers(), a = /* @__PURE__ */ __name(((s, n) => {
+    const o = r[s] || r[S], i = o[2][n];
     if (i) return i;
-    const l = n.match(s[0]);
+    const l = n.match(o[0]);
     if (!l) return [[], ht];
-    const c = l.indexOf("", 1);
-    return [s[1][c], l];
+    const d = l.indexOf("", 1);
+    return [o[1][d], l];
   }), "a");
   return this.match = a, a(e, t);
 }
 __name(Ut, "Ut");
-__name2(Ut, "Ut");
-var Ae = "[^/]+";
+var Pe = "[^/]+";
 var we = ".*";
 var Se = "(?:|/.*)";
 var le = /* @__PURE__ */ Symbol();
 var Wt = new Set(".\\+*[^]$()");
 function Gt(e, t) {
-  return e.length === 1 ? t.length === 1 ? e < t ? -1 : 1 : -1 : t.length === 1 || e === we || e === Se ? 1 : t === we || t === Se ? -1 : e === Ae ? 1 : t === Ae ? -1 : e.length === t.length ? e < t ? -1 : 1 : t.length - e.length;
+  return e.length === 1 ? t.length === 1 ? e < t ? -1 : 1 : -1 : t.length === 1 || e === we || e === Se ? 1 : t === we || t === Se ? -1 : e === Pe ? 1 : t === Pe ? -1 : e.length === t.length ? e < t ? -1 : 1 : t.length - e.length;
 }
 __name(Gt, "Gt");
-__name2(Gt, "Gt");
 var Q;
 var Z;
-var z;
+var M;
 var re;
 var Yt = (re = class {
   static {
     __name(this, "re");
   }
-  static {
-    __name2(this, "re");
-  }
   constructor() {
     g(this, Q);
     g(this, Z);
-    g(this, z, /* @__PURE__ */ Object.create(null));
+    g(this, M, /* @__PURE__ */ Object.create(null));
   }
-  insert(t, r, a, o, n) {
+  insert(t, r, a, s, n) {
     if (t.length === 0) {
-      if (d(this, Q) !== void 0) throw le;
+      if (c(this, Q) !== void 0) throw le;
       if (n) return;
       m(this, Q, r);
       return;
     }
-    const [s, ...i] = t, l = s === "*" ? i.length === 0 ? ["", "", we] : ["", "", Ae] : s === "/*" ? ["", "", Se] : s.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
-    let c;
+    const [o, ...i] = t, l = o === "*" ? i.length === 0 ? ["", "", we] : ["", "", Pe] : o === "/*" ? ["", "", Se] : o.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);
+    let d;
     if (l) {
       const p = l[1];
-      let u = l[2] || Ae;
+      let u = l[2] || Pe;
       if (p && l[2] && (u === ".*" || (u = u.replace(/^\((?!\?:)(?=[^)]+\)$)/, "(?:"), /\((?!\?:)/.test(u)))) throw le;
-      if (c = d(this, z)[u], !c) {
-        if (Object.keys(d(this, z)).some((f) => f !== we && f !== Se)) throw le;
+      if (d = c(this, M)[u], !d) {
+        if (Object.keys(c(this, M)).some((f) => f !== we && f !== Se)) throw le;
         if (n) return;
-        c = d(this, z)[u] = new re(), p !== "" && m(c, Z, o.varIndex++);
+        d = c(this, M)[u] = new re(), p !== "" && m(d, Z, s.varIndex++);
       }
-      !n && p !== "" && a.push([p, d(c, Z)]);
-    } else if (c = d(this, z)[s], !c) {
-      if (Object.keys(d(this, z)).some((p) => p.length > 1 && p !== we && p !== Se)) throw le;
+      !n && p !== "" && a.push([p, c(d, Z)]);
+    } else if (d = c(this, M)[o], !d) {
+      if (Object.keys(c(this, M)).some((p) => p.length > 1 && p !== we && p !== Se)) throw le;
       if (n) return;
-      c = d(this, z)[s] = new re();
+      d = c(this, M)[o] = new re();
     }
-    c.insert(i, r, a, o, n);
+    d.insert(i, r, a, s, n);
   }
   buildRegExpStr() {
-    const r = Object.keys(d(this, z)).sort(Gt).map((a) => {
-      const o = d(this, z)[a];
-      return (typeof d(o, Z) == "number" ? `(${a})@${d(o, Z)}` : Wt.has(a) ? `\\${a}` : a) + o.buildRegExpStr();
+    const r = Object.keys(c(this, M)).sort(Gt).map((a) => {
+      const s = c(this, M)[a];
+      return (typeof c(s, Z) == "number" ? `(${a})@${c(s, Z)}` : Wt.has(a) ? `\\${a}` : a) + s.buildRegExpStr();
     });
-    return typeof d(this, Q) == "number" && r.unshift(`#${d(this, Q)}`), r.length === 0 ? "" : r.length === 1 ? r[0] : "(?:" + r.join("|") + ")";
+    return typeof c(this, Q) == "number" && r.unshift(`#${c(this, Q)}`), r.length === 0 ? "" : r.length === 1 ? r[0] : "(?:" + r.join("|") + ")";
   }
-}, Q = /* @__PURE__ */ new WeakMap(), Z = /* @__PURE__ */ new WeakMap(), z = /* @__PURE__ */ new WeakMap(), re);
-var ze;
+}, Q = /* @__PURE__ */ new WeakMap(), Z = /* @__PURE__ */ new WeakMap(), M = /* @__PURE__ */ new WeakMap(), re);
+var Me;
 var Ee;
 var Ze;
 var Xt = (Ze = class {
   static {
     __name(this, "Ze");
   }
-  static {
-    __name2(this, "Ze");
-  }
   constructor() {
-    g(this, ze, { varIndex: 0 });
+    g(this, Me, { varIndex: 0 });
     g(this, Ee, new Yt());
   }
   insert(e, t, r) {
-    const a = [], o = [];
-    for (let s = 0; ; ) {
+    const a = [], s = [];
+    for (let o = 0; ; ) {
       let i = false;
       if (e = e.replace(/\{[^}]+\}/g, (l) => {
-        const c = `@\\${s}`;
-        return o[s] = [c, l], s++, i = true, c;
+        const d = `@\\${o}`;
+        return s[o] = [d, l], o++, i = true, d;
       }), !i) break;
     }
     const n = e.match(/(?::[^\/]+)|(?:\/\*$)|./g) || [];
-    for (let s = o.length - 1; s >= 0; s--) {
-      const [i] = o[s];
+    for (let o = s.length - 1; o >= 0; o--) {
+      const [i] = s[o];
       for (let l = n.length - 1; l >= 0; l--) if (n[l].indexOf(i) !== -1) {
-        n[l] = n[l].replace(i, o[s][1]);
+        n[l] = n[l].replace(i, s[o][1]);
         break;
       }
     }
-    return d(this, Ee).insert(n, t, a, d(this, ze), r), a;
+    return c(this, Ee).insert(n, t, a, c(this, Me), r), a;
   }
   buildRegExp() {
-    let e = d(this, Ee).buildRegExpStr();
+    let e = c(this, Ee).buildRegExpStr();
     if (e === "") return [/^$/, [], []];
     let t = 0;
     const r = [], a = [];
-    return e = e.replace(/#(\d+)|@(\d+)|\.\*\$/g, (o, n, s) => n !== void 0 ? (r[++t] = Number(n), "$()") : (s !== void 0 && (a[Number(s)] = ++t), "")), [new RegExp(`^${e}`), r, a];
+    return e = e.replace(/#(\d+)|@(\d+)|\.\*\$/g, (s, n, o) => n !== void 0 ? (r[++t] = Number(n), "$()") : (o !== void 0 && (a[Number(o)] = ++t), "")), [new RegExp(`^${e}`), r, a];
   }
-}, ze = /* @__PURE__ */ new WeakMap(), Ee = /* @__PURE__ */ new WeakMap(), Ze);
+}, Me = /* @__PURE__ */ new WeakMap(), Ee = /* @__PURE__ */ new WeakMap(), Ze);
 var Qt = [/^$/, [], /* @__PURE__ */ Object.create(null)];
-var Pe = /* @__PURE__ */ Object.create(null);
+var Ae = /* @__PURE__ */ Object.create(null);
 function gt(e) {
-  return Pe[e] ?? (Pe[e] = new RegExp(e === "*" ? "" : `^${e.replace(/\/\*$|([.\\+*[^\]$()])/g, (t, r) => r ? `\\${r}` : "(?:|/.*)")}$`));
+  return Ae[e] ?? (Ae[e] = new RegExp(e === "*" ? "" : `^${e.replace(/\/\*$|([.\\+*[^\]$()])/g, (t, r) => r ? `\\${r}` : "(?:|/.*)")}$`));
 }
 __name(gt, "gt");
-__name2(gt, "gt");
 function Zt() {
-  Pe = /* @__PURE__ */ Object.create(null);
+  Ae = /* @__PURE__ */ Object.create(null);
 }
 __name(Zt, "Zt");
-__name2(Zt, "Zt");
 function er(e) {
-  var c;
+  var d;
   const t = new Xt(), r = [];
   if (e.length === 0) return Qt;
-  const a = e.map((p) => [!/\*|\/:/.test(p[0]), ...p]).sort(([p, u], [f, x]) => p ? 1 : f ? -1 : u.length - x.length), o = /* @__PURE__ */ Object.create(null);
+  const a = e.map((p) => [!/\*|\/:/.test(p[0]), ...p]).sort(([p, u], [f, x]) => p ? 1 : f ? -1 : u.length - x.length), s = /* @__PURE__ */ Object.create(null);
   for (let p = 0, u = -1, f = a.length; p < f; p++) {
     const [x, I, N] = a[p];
-    x ? o[I] = [N.map(([R]) => [R, /* @__PURE__ */ Object.create(null)]), ht] : u++;
+    x ? s[I] = [N.map(([R]) => [R, /* @__PURE__ */ Object.create(null)]), ht] : u++;
     let E;
     try {
       E = t.insert(I, u, x);
@@ -755,48 +703,43 @@ function er(e) {
       throw R === le ? new mt(I) : R;
     }
     x || (r[u] = N.map(([R, w]) => {
-      const C = /* @__PURE__ */ Object.create(null);
+      const z = /* @__PURE__ */ Object.create(null);
       for (w -= 1; w >= 0; w--) {
-        const [ge, Me] = E[w];
-        C[ge] = Me;
+        const [ge, Ce] = E[w];
+        z[ge] = Ce;
       }
-      return [R, C];
+      return [R, z];
     }));
   }
-  const [n, s, i] = t.buildRegExp();
+  const [n, o, i] = t.buildRegExp();
   for (let p = 0, u = r.length; p < u; p++) for (let f = 0, x = r[p].length; f < x; f++) {
-    const I = (c = r[p][f]) == null ? void 0 : c[1];
+    const I = (d = r[p][f]) == null ? void 0 : d[1];
     if (!I) continue;
     const N = Object.keys(I);
     for (let E = 0, R = N.length; E < R; E++) I[N[E]] = i[I[N[E]]];
   }
   const l = [];
-  for (const p in s) l[p] = r[s[p]];
-  return [n, l, o];
+  for (const p in o) l[p] = r[o[p]];
+  return [n, l, s];
 }
 __name(er, "er");
-__name2(er, "er");
 function ne(e, t) {
   if (e) {
-    for (const r of Object.keys(e).sort((a, o) => o.length - a.length)) if (gt(r).test(t)) return [...e[r]];
+    for (const r of Object.keys(e).sort((a, s) => s.length - a.length)) if (gt(r).test(t)) return [...e[r]];
   }
 }
 __name(ne, "ne");
-__name2(ne, "ne");
 var J;
 var F;
-var Ce;
+var ze;
 var bt;
 var et;
 var tr = (et = class {
   static {
     __name(this, "et");
   }
-  static {
-    __name2(this, "et");
-  }
   constructor() {
-    g(this, Ce);
+    g(this, ze);
     h(this, "name", "RegExpRouter");
     g(this, J);
     g(this, F);
@@ -805,49 +748,49 @@ var tr = (et = class {
   }
   add(e, t, r) {
     var i;
-    const a = d(this, J), o = d(this, F);
-    if (!a || !o) throw new Error(ut);
-    a[e] || [a, o].forEach((l) => {
-      l[e] = /* @__PURE__ */ Object.create(null), Object.keys(l[S]).forEach((c) => {
-        l[e][c] = [...l[S][c]];
+    const a = c(this, J), s = c(this, F);
+    if (!a || !s) throw new Error(ut);
+    a[e] || [a, s].forEach((l) => {
+      l[e] = /* @__PURE__ */ Object.create(null), Object.keys(l[S]).forEach((d) => {
+        l[e][d] = [...l[S][d]];
       });
     }), t === "/*" && (t = "*");
     const n = (t.match(/\/:/g) || []).length;
     if (/\*$/.test(t)) {
       const l = gt(t);
-      e === S ? Object.keys(a).forEach((c) => {
+      e === S ? Object.keys(a).forEach((d) => {
         var p;
-        (p = a[c])[t] || (p[t] = ne(a[c], t) || ne(a[S], t) || []);
-      }) : (i = a[e])[t] || (i[t] = ne(a[e], t) || ne(a[S], t) || []), Object.keys(a).forEach((c) => {
-        (e === S || e === c) && Object.keys(a[c]).forEach((p) => {
-          l.test(p) && a[c][p].push([r, n]);
+        (p = a[d])[t] || (p[t] = ne(a[d], t) || ne(a[S], t) || []);
+      }) : (i = a[e])[t] || (i[t] = ne(a[e], t) || ne(a[S], t) || []), Object.keys(a).forEach((d) => {
+        (e === S || e === d) && Object.keys(a[d]).forEach((p) => {
+          l.test(p) && a[d][p].push([r, n]);
         });
-      }), Object.keys(o).forEach((c) => {
-        (e === S || e === c) && Object.keys(o[c]).forEach((p) => l.test(p) && o[c][p].push([r, n]));
+      }), Object.keys(s).forEach((d) => {
+        (e === S || e === d) && Object.keys(s[d]).forEach((p) => l.test(p) && s[d][p].push([r, n]));
       });
       return;
     }
-    const s = nt(t) || [t];
-    for (let l = 0, c = s.length; l < c; l++) {
-      const p = s[l];
-      Object.keys(o).forEach((u) => {
+    const o = nt(t) || [t];
+    for (let l = 0, d = o.length; l < d; l++) {
+      const p = o[l];
+      Object.keys(s).forEach((u) => {
         var f;
-        (e === S || e === u) && ((f = o[u])[p] || (f[p] = [...ne(a[u], p) || ne(a[S], p) || []]), o[u][p].push([r, n - c + l + 1]));
+        (e === S || e === u) && ((f = s[u])[p] || (f[p] = [...ne(a[u], p) || ne(a[S], p) || []]), s[u][p].push([r, n - d + l + 1]));
       });
     }
   }
   buildAllMatchers() {
     const e = /* @__PURE__ */ Object.create(null);
-    return Object.keys(d(this, F)).concat(Object.keys(d(this, J))).forEach((t) => {
-      e[t] || (e[t] = b(this, Ce, bt).call(this, t));
+    return Object.keys(c(this, F)).concat(Object.keys(c(this, J))).forEach((t) => {
+      e[t] || (e[t] = b(this, ze, bt).call(this, t));
     }), m(this, J, m(this, F, void 0)), Zt(), e;
   }
-}, J = /* @__PURE__ */ new WeakMap(), F = /* @__PURE__ */ new WeakMap(), Ce = /* @__PURE__ */ new WeakSet(), bt = /* @__PURE__ */ __name2(function(e) {
+}, J = /* @__PURE__ */ new WeakMap(), F = /* @__PURE__ */ new WeakMap(), ze = /* @__PURE__ */ new WeakSet(), bt = /* @__PURE__ */ __name(function(e) {
   const t = [];
   let r = e === S;
-  return [d(this, J), d(this, F)].forEach((a) => {
-    const o = a[e] ? Object.keys(a[e]).map((n) => [n, a[e][n]]) : [];
-    o.length !== 0 ? (r || (r = true), t.push(...o)) : e !== S && t.push(...Object.keys(a[S]).map((n) => [n, a[S][n]]));
+  return [c(this, J), c(this, F)].forEach((a) => {
+    const s = a[e] ? Object.keys(a[e]).map((n) => [n, a[e][n]]) : [];
+    s.length !== 0 ? (r || (r = true), t.push(...s)) : e !== S && t.push(...Object.keys(a[S]).map((n) => [n, a[S][n]]));
   }), r ? er(t) : null;
 }, "bt"), et);
 var U;
@@ -857,9 +800,6 @@ var rr = (tt = class {
   static {
     __name(this, "tt");
   }
-  static {
-    __name2(this, "tt");
-  }
   constructor(e) {
     h(this, "name", "SmartRouter");
     g(this, U, []);
@@ -867,18 +807,18 @@ var rr = (tt = class {
     m(this, U, e.routers);
   }
   add(e, t, r) {
-    if (!d(this, $)) throw new Error(ut);
-    d(this, $).push([e, t, r]);
+    if (!c(this, $)) throw new Error(ut);
+    c(this, $).push([e, t, r]);
   }
   match(e, t) {
-    if (!d(this, $)) throw new Error("Fatal error");
-    const r = d(this, U), a = d(this, $), o = r.length;
-    let n = 0, s;
-    for (; n < o; n++) {
+    if (!c(this, $)) throw new Error("Fatal error");
+    const r = c(this, U), a = c(this, $), s = r.length;
+    let n = 0, o;
+    for (; n < s; n++) {
       const i = r[n];
       try {
-        for (let l = 0, c = a.length; l < c; l++) i.add(...a[l]);
-        s = i.match(e, t);
+        for (let l = 0, d = a.length; l < d; l++) i.add(...a[l]);
+        o = i.match(e, t);
       } catch (l) {
         if (l instanceof mt) continue;
         throw l;
@@ -886,16 +826,16 @@ var rr = (tt = class {
       this.match = i.match.bind(i), m(this, U, [i]), m(this, $, void 0);
       break;
     }
-    if (n === o) throw new Error("Fatal error");
-    return this.name = `SmartRouter + ${this.activeRouter.name}`, s;
+    if (n === s) throw new Error("Fatal error");
+    return this.name = `SmartRouter + ${this.activeRouter.name}`, o;
   }
   get activeRouter() {
-    if (d(this, $) || d(this, U).length !== 1) throw new Error("No active router has been determined yet.");
-    return d(this, U)[0];
+    if (c(this, $) || c(this, U).length !== 1) throw new Error("No active router has been determined yet.");
+    return c(this, U)[0];
   }
 }, U = /* @__PURE__ */ new WeakMap(), $ = /* @__PURE__ */ new WeakMap(), tt);
 var ye = /* @__PURE__ */ Object.create(null);
-var ar = /* @__PURE__ */ __name2((e) => {
+var ar = /* @__PURE__ */ __name((e) => {
   for (const t in e) return true;
   return false;
 }, "ar");
@@ -907,12 +847,9 @@ var O;
 var q;
 var Y;
 var he;
-var or = (he = class {
+var sr = (he = class {
   static {
     __name(this, "he");
-  }
-  static {
-    __name2(this, "he");
   }
   constructor(t, r, a) {
     g(this, q);
@@ -922,64 +859,64 @@ var or = (he = class {
     g(this, fe, 0);
     g(this, O, ye);
     if (m(this, T, a || /* @__PURE__ */ Object.create(null)), m(this, W, []), t && r) {
-      const o = /* @__PURE__ */ Object.create(null);
-      o[t] = { handler: r, possibleKeys: [], score: 0 }, m(this, W, [o]);
+      const s = /* @__PURE__ */ Object.create(null);
+      s[t] = { handler: r, possibleKeys: [], score: 0 }, m(this, W, [s]);
     }
     m(this, ee, []);
   }
   insert(t, r, a) {
     m(this, fe, ++Fe(this, fe)._);
-    let o = this;
-    const n = Nt(r), s = [];
+    let s = this;
+    const n = Nt(r), o = [];
     for (let i = 0, l = n.length; i < l; i++) {
-      const c = n[i], p = n[i + 1], u = zt(c, p), f = Array.isArray(u) ? u[0] : c;
-      if (f in d(o, T)) {
-        o = d(o, T)[f], u && s.push(u[1]);
+      const d = n[i], p = n[i + 1], u = Mt(d, p), f = Array.isArray(u) ? u[0] : d;
+      if (f in c(s, T)) {
+        s = c(s, T)[f], u && o.push(u[1]);
         continue;
       }
-      d(o, T)[f] = new he(), u && (d(o, ee).push(u), s.push(u[1])), o = d(o, T)[f];
+      c(s, T)[f] = new he(), u && (c(s, ee).push(u), o.push(u[1])), s = c(s, T)[f];
     }
-    return d(o, W).push({ [t]: { handler: a, possibleKeys: s.filter((i, l, c) => c.indexOf(i) === l), score: d(this, fe) } }), o;
+    return c(s, W).push({ [t]: { handler: a, possibleKeys: o.filter((i, l, d) => d.indexOf(i) === l), score: c(this, fe) } }), s;
   }
   search(t, r) {
     var p;
     const a = [];
     m(this, O, ye);
     let n = [this];
-    const s = at(r), i = [], l = s.length;
-    let c = null;
+    const o = at(r), i = [], l = o.length;
+    let d = null;
     for (let u = 0; u < l; u++) {
-      const f = s[u], x = u === l - 1, I = [];
+      const f = o[u], x = u === l - 1, I = [];
       for (let E = 0, R = n.length; E < R; E++) {
-        const w = n[E], C = d(w, T)[f];
-        C && (m(C, O, d(w, O)), x ? (d(C, T)["*"] && b(this, q, Y).call(this, a, d(C, T)["*"], t, d(w, O)), b(this, q, Y).call(this, a, C, t, d(w, O))) : I.push(C));
-        for (let ge = 0, Me = d(w, ee).length; ge < Me; ge++) {
-          const Ve = d(w, ee)[ge], K = d(w, O) === ye ? {} : { ...d(w, O) };
-          if (Ve === "*") {
-            const ae = d(w, T)["*"];
-            ae && (b(this, q, Y).call(this, a, ae, t, d(w, O)), m(ae, O, K), I.push(ae));
+        const w = n[E], z = c(w, T)[f];
+        z && (m(z, O, c(w, O)), x ? (c(z, T)["*"] && b(this, q, Y).call(this, a, c(z, T)["*"], t, c(w, O)), b(this, q, Y).call(this, a, z, t, c(w, O))) : I.push(z));
+        for (let ge = 0, Ce = c(w, ee).length; ge < Ce; ge++) {
+          const Ke = c(w, ee)[ge], D = c(w, O) === ye ? {} : { ...c(w, O) };
+          if (Ke === "*") {
+            const ae = c(w, T)["*"];
+            ae && (b(this, q, Y).call(this, a, ae, t, c(w, O)), m(ae, O, D), I.push(ae));
             continue;
           }
-          const [St, De, be] = Ve;
+          const [St, Ve, be] = Ke;
           if (!f && !(be instanceof RegExp)) continue;
-          const M = d(w, T)[St];
+          const C = c(w, T)[St];
           if (be instanceof RegExp) {
-            if (c === null) {
-              c = new Array(l);
-              let oe = r[0] === "/" ? 1 : 0;
-              for (let ve = 0; ve < l; ve++) c[ve] = oe, oe += s[ve].length + 1;
+            if (d === null) {
+              d = new Array(l);
+              let se = r[0] === "/" ? 1 : 0;
+              for (let ve = 0; ve < l; ve++) d[ve] = se, se += o[ve].length + 1;
             }
-            const ae = r.substring(c[u]), Be = be.exec(ae);
+            const ae = r.substring(d[u]), Be = be.exec(ae);
             if (Be) {
-              if (K[De] = Be[0], b(this, q, Y).call(this, a, M, t, d(w, O), K), ar(d(M, T))) {
-                m(M, O, K);
-                const oe = ((p = Be[0].match(/\//)) == null ? void 0 : p.length) ?? 0;
-                (i[oe] || (i[oe] = [])).push(M);
+              if (D[Ve] = Be[0], b(this, q, Y).call(this, a, C, t, c(w, O), D), ar(c(C, T))) {
+                m(C, O, D);
+                const se = ((p = Be[0].match(/\//)) == null ? void 0 : p.length) ?? 0;
+                (i[se] || (i[se] = [])).push(C);
               }
               continue;
             }
           }
-          (be === true || be.test(f)) && (K[De] = f, x ? (b(this, q, Y).call(this, a, M, t, K, d(w, O)), d(M, T)["*"] && b(this, q, Y).call(this, a, d(M, T)["*"], t, K, d(w, O))) : (m(M, O, K), I.push(M)));
+          (be === true || be.test(f)) && (D[Ve] = f, x ? (b(this, q, Y).call(this, a, C, t, D, c(w, O)), c(C, T)["*"] && b(this, q, Y).call(this, a, c(C, T)["*"], t, D, c(w, O))) : (m(C, O, D), I.push(C)));
         }
       }
       const N = i.shift();
@@ -987,12 +924,12 @@ var or = (he = class {
     }
     return a.length > 1 && a.sort((u, f) => u.score - f.score), [a.map(({ handler: u, params: f }) => [u, f])];
   }
-}, W = /* @__PURE__ */ new WeakMap(), T = /* @__PURE__ */ new WeakMap(), ee = /* @__PURE__ */ new WeakMap(), fe = /* @__PURE__ */ new WeakMap(), O = /* @__PURE__ */ new WeakMap(), q = /* @__PURE__ */ new WeakSet(), Y = /* @__PURE__ */ __name2(function(t, r, a, o, n) {
-  for (let s = 0, i = d(r, W).length; s < i; s++) {
-    const l = d(r, W)[s], c = l[a] || l[S], p = {};
-    if (c !== void 0 && (c.params = /* @__PURE__ */ Object.create(null), t.push(c), o !== ye || n && n !== ye)) for (let u = 0, f = c.possibleKeys.length; u < f; u++) {
-      const x = c.possibleKeys[u], I = p[c.score];
-      c.params[x] = n != null && n[x] && !I ? n[x] : o[x] ?? (n == null ? void 0 : n[x]), p[c.score] = true;
+}, W = /* @__PURE__ */ new WeakMap(), T = /* @__PURE__ */ new WeakMap(), ee = /* @__PURE__ */ new WeakMap(), fe = /* @__PURE__ */ new WeakMap(), O = /* @__PURE__ */ new WeakMap(), q = /* @__PURE__ */ new WeakSet(), Y = /* @__PURE__ */ __name(function(t, r, a, s, n) {
+  for (let o = 0, i = c(r, W).length; o < i; o++) {
+    const l = c(r, W)[o], d = l[a] || l[S], p = {};
+    if (d !== void 0 && (d.params = /* @__PURE__ */ Object.create(null), t.push(d), s !== ye || n && n !== ye)) for (let u = 0, f = d.possibleKeys.length; u < f; u++) {
+      const x = d.possibleKeys[u], I = p[d.score];
+      d.params[x] = n != null && n[x] && !I ? n[x] : s[x] ?? (n == null ? void 0 : n[x]), p[d.score] = true;
     }
   }
 }, "Y"), he);
@@ -1002,247 +939,237 @@ var nr = (rt = class {
   static {
     __name(this, "rt");
   }
-  static {
-    __name2(this, "rt");
-  }
   constructor() {
     h(this, "name", "TrieRouter");
     g(this, te);
-    m(this, te, new or());
+    m(this, te, new sr());
   }
   add(e, t, r) {
     const a = nt(t);
     if (a) {
-      for (let o = 0, n = a.length; o < n; o++) d(this, te).insert(e, a[o], r);
+      for (let s = 0, n = a.length; s < n; s++) c(this, te).insert(e, a[s], r);
       return;
     }
-    d(this, te).insert(e, t, r);
+    c(this, te).insert(e, t, r);
   }
   match(e, t) {
-    return d(this, te).search(e, t);
+    return c(this, te).search(e, t);
   }
 }, te = /* @__PURE__ */ new WeakMap(), rt);
 var vt = class extends Ft {
   static {
     __name(this, "vt");
   }
-  static {
-    __name2(this, "vt");
-  }
   constructor(e = {}) {
     super(e), this.router = e.router ?? new rr({ routers: [new tr(), new nr()] });
   }
 };
-var sr = /* @__PURE__ */ __name2((e) => {
-  const r = { ...{ origin: "*", allowMethods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"], allowHeaders: [], exposeHeaders: [] }, ...e }, a = ((n) => typeof n == "string" ? n === "*" ? r.credentials ? (s) => s || null : () => n : (s) => n === s ? s : null : typeof n == "function" ? n : (s) => n.includes(s) ? s : null)(r.origin), o = ((n) => typeof n == "function" ? n : Array.isArray(n) ? () => n : () => [])(r.allowMethods);
-  return async function(s, i) {
+var or = /* @__PURE__ */ __name((e) => {
+  const r = { ...{ origin: "*", allowMethods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"], allowHeaders: [], exposeHeaders: [] }, ...e }, a = ((n) => typeof n == "string" ? n === "*" ? r.credentials ? (o) => o || null : () => n : (o) => n === o ? o : null : typeof n == "function" ? n : (o) => n.includes(o) ? o : null)(r.origin), s = ((n) => typeof n == "function" ? n : Array.isArray(n) ? () => n : () => [])(r.allowMethods);
+  return async function(o, i) {
     var p;
     function l(u, f) {
-      s.res.headers.set(u, f);
+      o.res.headers.set(u, f);
     }
     __name(l, "l");
-    __name2(l, "l");
-    const c = await a(s.req.header("origin") || "", s);
-    if (c && l("Access-Control-Allow-Origin", c), r.credentials && l("Access-Control-Allow-Credentials", "true"), (p = r.exposeHeaders) != null && p.length && l("Access-Control-Expose-Headers", r.exposeHeaders.join(",")), s.req.method === "OPTIONS") {
+    const d = await a(o.req.header("origin") || "", o);
+    if (d && l("Access-Control-Allow-Origin", d), r.credentials && l("Access-Control-Allow-Credentials", "true"), (p = r.exposeHeaders) != null && p.length && l("Access-Control-Expose-Headers", r.exposeHeaders.join(",")), o.req.method === "OPTIONS") {
       (r.origin !== "*" || r.credentials) && l("Vary", "Origin"), r.maxAge != null && l("Access-Control-Max-Age", r.maxAge.toString());
-      const u = await o(s.req.header("origin") || "", s);
+      const u = await s(o.req.header("origin") || "", o);
       u.length && l("Access-Control-Allow-Methods", u.join(","));
       let f = r.allowHeaders;
       if (!(f != null && f.length)) {
-        const x = s.req.header("Access-Control-Request-Headers");
+        const x = o.req.header("Access-Control-Request-Headers");
         x && (f = x.split(/\s*,\s*/));
       }
-      return f != null && f.length && (l("Access-Control-Allow-Headers", f.join(",")), s.res.headers.append("Vary", "Access-Control-Request-Headers")), s.res.headers.delete("Content-Length"), s.res.headers.delete("Content-Type"), new Response(null, { headers: s.res.headers, status: 204, statusText: "No Content" });
+      return f != null && f.length && (l("Access-Control-Allow-Headers", f.join(",")), o.res.headers.append("Vary", "Access-Control-Request-Headers")), o.res.headers.delete("Content-Length"), o.res.headers.delete("Content-Type"), new Response(null, { headers: o.res.headers, status: 204, statusText: "No Content" });
     }
-    await i(), (r.origin !== "*" || r.credentials) && s.header("Vary", "Origin", { append: true });
+    await i(), (r.origin !== "*" || r.credentials) && o.header("Vary", "Origin", { append: true });
   };
-}, "sr");
+}, "or");
 var v = new vt();
-v.use("/api/*", sr());
+v.use("/api/*", or());
 function xt(e) {
   let t = 5381;
   for (let r = 0; r < e.length; r++) t = (t << 5) + t ^ e.charCodeAt(r);
   return (t >>> 0).toString(36);
 }
 __name(xt, "xt");
-__name2(xt, "xt");
 async function y(e) {
-  const r = (e.req.header("Authorization") || "").replace("Bearer ", "");
-  if (!r) return null;
+  const t = e.req.header("Authorization") || "", r = t.startsWith("Bearer ") ? t.slice(7).trim() : "";
+  if (!r || r === "null" || r === "undefined") return null;
   const a = await e.env.KV.get(`session:${r}`);
   if (!a) return null;
-  const o = await e.env.KV.get(`user:${a}`);
-  return o ? JSON.parse(o) : null;
+  const s = await e.env.KV.get(`user:${a}`);
+  return s ? JSON.parse(s) : null;
 }
 __name(y, "y");
-__name2(y, "y");
 v.post("/api/auth/register", async (e) => {
-  const { userId: t, password: r, displayName: a, avatar: o } = await e.req.json();
+  const { userId: t, password: r, displayName: a, avatar: s } = await e.req.json();
   if (!t || !r || !a) return e.json({ error: "\uBAA8\uB4E0 \uD56D\uBAA9\uC744 \uC785\uB825\uD574\uC8FC\uC138\uC694" }, 400);
   if (t.length < 3) return e.json({ error: "\uC544\uC774\uB514\uB294 3\uC790 \uC774\uC0C1\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4" }, 400);
   if (r.length < 4) return e.json({ error: "\uBE44\uBC00\uBC88\uD638\uB294 4\uC790 \uC774\uC0C1\uC774\uC5B4\uC57C \uD569\uB2C8\uB2E4" }, 400);
   if (!/^[a-z0-9_]+$/i.test(t)) return e.json({ error: "\uC544\uC774\uB514\uB294 \uC601\uBB38/\uC22B\uC790/\uBC11\uC904\uB9CC \uC0AC\uC6A9 \uAC00\uB2A5\uD569\uB2C8\uB2E4" }, 400);
   if (await e.env.KV.get(`user:${t.toLowerCase()}`)) return e.json({ error: "\uC774\uBBF8 \uC0AC\uC6A9 \uC911\uC778 \uC544\uC774\uB514\uC785\uB2C8\uB2E4" }, 409);
-  const s = { userId: t.toLowerCase(), displayName: a, avatar: o || "\u{1F43B}", passwordHash: xt(r), createdAt: Date.now() };
-  await e.env.KV.put(`user:${t.toLowerCase()}`, JSON.stringify(s));
+  const o = { userId: t.toLowerCase(), displayName: a, avatar: s || "\u{1F43B}", passwordHash: xt(r), createdAt: Date.now() };
+  await e.env.KV.put(`user:${t.toLowerCase()}`, JSON.stringify(o));
   const i = `tok_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
-  return await e.env.KV.put(`session:${i}`, t.toLowerCase(), { expirationTtl: 86400 * 7 }), e.json({ success: true, token: i, userId: s.userId, displayName: a, avatar: s.avatar });
+  return await e.env.KV.put(`session:${i}`, t.toLowerCase(), { expirationTtl: 86400 * 7 }), e.json({ success: true, token: i, userId: o.userId, displayName: a, avatar: o.avatar });
 });
 v.post("/api/auth/login", async (e) => {
   const { userId: t, password: r } = await e.req.json();
   if (!t || !r) return e.json({ error: "\uC544\uC774\uB514\uC640 \uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694" }, 400);
   const a = await e.env.KV.get(`user:${t.toLowerCase()}`);
   if (!a) return e.json({ error: "\uC874\uC7AC\uD558\uC9C0 \uC54A\uB294 \uC544\uC774\uB514\uC785\uB2C8\uB2E4" }, 404);
-  const o = JSON.parse(a);
-  if (o.passwordHash !== xt(r)) return e.json({ error: "\uBE44\uBC00\uBC88\uD638\uAC00 \uD2C0\uB838\uC2B5\uB2C8\uB2E4" }, 401);
+  const s = JSON.parse(a);
+  if (s.passwordHash !== xt(r)) return e.json({ error: "\uBE44\uBC00\uBC88\uD638\uAC00 \uD2C0\uB838\uC2B5\uB2C8\uB2E4" }, 401);
   const n = `tok_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
-  return await e.env.KV.put(`session:${n}`, o.userId, { expirationTtl: 86400 * 7 }), e.json({ success: true, token: n, userId: o.userId, displayName: o.displayName, avatar: o.avatar });
+  return await e.env.KV.put(`session:${n}`, s.userId, { expirationTtl: 86400 * 7 }), e.json({ success: true, token: n, userId: s.userId, displayName: s.displayName, avatar: s.avatar });
 });
 v.get("/api/me", async (e) => {
   const t = await y(e);
-  return t ? e.json({ userId: t.userId, displayName: t.displayName, avatar: t.avatar }) : e.json({ error: "Unauthorized" }, 401);
+  return t ? e.json({ success: true, userId: t.userId, displayName: t.displayName, avatar: t.avatar }) : e.json({ success: false, error: "Unauthorized" }, 401);
 });
 async function yt(e, t, r) {
-  const [a, o] = await Promise.all([e.get(`friends:${t}`), e.get(`friends:${r}`)]), n = a ? JSON.parse(a) : [], s = o ? JSON.parse(o) : [];
-  n.includes(r) || n.push(r), s.includes(t) || s.push(t), await Promise.all([e.put(`friends:${t}`, JSON.stringify(n)), e.put(`friends:${r}`, JSON.stringify(s))]);
+  const [a, s] = await Promise.all([e.get(`friends:${t}`), e.get(`friends:${r}`)]), n = a ? JSON.parse(a) : [], o = s ? JSON.parse(s) : [];
+  n.includes(r) || n.push(r), o.includes(t) || o.push(t), await Promise.all([e.put(`friends:${t}`, JSON.stringify(n)), e.put(`friends:${r}`, JSON.stringify(o))]);
 }
 __name(yt, "yt");
-__name2(yt, "yt");
 v.post("/api/friends/request", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { targetUserId: r } = await e.req.json(), a = r == null ? void 0 : r.toLowerCase();
   if (!a || a === t.userId) return e.json({ error: "\uC798\uBABB\uB41C \uC694\uCCAD" }, 400);
-  const [o, n, s, i] = await Promise.all([e.env.KV.get(`user:${a}`), e.env.KV.get(`friends:${t.userId}`), e.env.KV.get(`friend_req:${a}:${t.userId}`), e.env.KV.get(`friend_req:${t.userId}:${a}`)]);
-  return o ? (n ? JSON.parse(n) : []).includes(a) ? e.json({ error: "\uC774\uBBF8 \uCE5C\uAD6C\uC785\uB2C8\uB2E4" }, 409) : s ? e.json({ error: "\uC774\uBBF8 \uCE5C\uAD6C \uC694\uCCAD\uC744 \uBCF4\uB0C8\uC2B5\uB2C8\uB2E4" }, 409) : i ? (await yt(e.env.KV, t.userId, a), await e.env.KV.delete(`friend_req:${t.userId}:${a}`), e.json({ success: true, auto_accepted: true })) : (await e.env.KV.put(`friend_req:${a}:${t.userId}`, JSON.stringify({ from: t.userId, fromName: t.displayName, fromAvatar: t.avatar, sentAt: Date.now() }), { expirationTtl: 86400 * 7 }), e.json({ success: true })) : e.json({ error: "\uC874\uC7AC\uD558\uC9C0 \uC54A\uB294 \uC0AC\uC6A9\uC790\uC785\uB2C8\uB2E4" }, 404);
+  const [s, n, o, i] = await Promise.all([e.env.KV.get(`user:${a}`), e.env.KV.get(`friends:${t.userId}`), e.env.KV.get(`friend_req:${a}:${t.userId}`), e.env.KV.get(`friend_req:${t.userId}:${a}`)]);
+  return s ? (n ? JSON.parse(n) : []).includes(a) ? e.json({ error: "\uC774\uBBF8 \uCE5C\uAD6C\uC785\uB2C8\uB2E4" }, 409) : o ? e.json({ error: "\uC774\uBBF8 \uCE5C\uAD6C \uC694\uCCAD\uC744 \uBCF4\uB0C8\uC2B5\uB2C8\uB2E4" }, 409) : i ? (await yt(e.env.KV, t.userId, a), await e.env.KV.delete(`friend_req:${t.userId}:${a}`), e.json({ success: true, auto_accepted: true })) : (await e.env.KV.put(`friend_req:${a}:${t.userId}`, JSON.stringify({ from: t.userId, fromName: t.displayName, fromAvatar: t.avatar, sentAt: Date.now() }), { expirationTtl: 86400 * 7 }), e.json({ success: true })) : e.json({ error: "\uC874\uC7AC\uD558\uC9C0 \uC54A\uB294 \uC0AC\uC6A9\uC790\uC785\uB2C8\uB2E4" }, 404);
 });
 v.post("/api/friends/accept", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { fromUserId: r } = await e.req.json(), a = r == null ? void 0 : r.toLowerCase();
   return await Promise.all([yt(e.env.KV, t.userId, a), e.env.KV.delete(`friend_req:${t.userId}:${a}`)]), e.json({ success: true });
 });
 v.post("/api/friends/reject", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { fromUserId: r } = await e.req.json();
   return await e.env.KV.delete(`friend_req:${t.userId}:${r == null ? void 0 : r.toLowerCase()}`), e.json({ success: true });
 });
 v.get("/api/friends/requests", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const r = await e.env.KV.list({ prefix: `friend_req:${t.userId}:` }), o = (await Promise.all(r.keys.map((n) => e.env.KV.get(n.name)))).filter(Boolean).map((n) => JSON.parse(n));
-  return e.json({ requests: o });
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const r = await e.env.KV.list({ prefix: `friend_req:${t.userId}:` }), s = (await Promise.all(r.keys.map((n) => e.env.KV.get(n.name)))).filter(Boolean).map((n) => JSON.parse(n));
+  return e.json({ requests: s });
 });
 v.get("/api/friends", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const [r, a, o] = await Promise.all([e.env.KV.get(`friends:${t.userId}`), e.env.KV.get(`loc_perm:${t.userId}`), e.env.KV.get(`view_perm:${t.userId}`)]), n = r ? JSON.parse(r) : [], s = a ? JSON.parse(a) : {}, i = o ? JSON.parse(o) : {};
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const [r, a, s] = await Promise.all([e.env.KV.get(`friends:${t.userId}`), e.env.KV.get(`loc_perm:${t.userId}`), e.env.KV.get(`view_perm:${t.userId}`)]), n = r ? JSON.parse(r) : [], o = a ? JSON.parse(a) : {}, i = s ? JSON.parse(s) : {};
   if (!n.length) return e.json({ friends: [] });
-  const l = await Promise.all(n.map(async (c) => {
-    const [p, u, f] = await Promise.all([e.env.KV.get(`user:${c}`), e.env.KV.get(`loc_perm:${c}`), i[c] !== false ? e.env.KV.get(`loc:${c}`) : Promise.resolve(null)]);
+  const l = await Promise.all(n.map(async (d) => {
+    const [p, u, f] = await Promise.all([e.env.KV.get(`user:${d}`), e.env.KV.get(`loc_perm:${d}`), i[d] !== false ? e.env.KV.get(`loc:${d}`) : Promise.resolve(null)]);
     if (!p) return null;
-    const x = JSON.parse(p), N = (u ? JSON.parse(u) : {})[t.userId] !== false, E = i[c] !== false, R = N && E && f ? JSON.parse(f) : null;
-    return { userId: x.userId, displayName: x.displayName, avatar: x.avatar, location: R, iShareWithFriend: s[c] !== false, iViewFriend: E };
+    const x = JSON.parse(p), N = (u ? JSON.parse(u) : {})[t.userId] !== false, E = i[d] !== false, R = N && E && f ? JSON.parse(f) : null;
+    return { userId: x.userId, displayName: x.displayName, avatar: x.avatar, location: R, iShareWithFriend: o[d] !== false, iViewFriend: E };
   }));
   return e.json({ friends: l.filter(Boolean) });
 });
 v.post("/api/location", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const { lat: r, lng: a, accuracy: o } = await e.req.json();
-  return !r || !a ? e.json({ error: "lat/lng required" }, 400) : (await e.env.KV.put(`loc:${t.userId}`, JSON.stringify({ lat: r, lng: a, accuracy: o || 20, updatedAt: Date.now() }), { expirationTtl: 3600 }), e.json({ success: true }));
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const { lat: r, lng: a, accuracy: s } = await e.req.json();
+  return !r || !a ? e.json({ error: "lat/lng required" }, 400) : (await e.env.KV.put(`loc:${t.userId}`, JSON.stringify({ lat: r, lng: a, accuracy: s || 20, updatedAt: Date.now() }), { expirationTtl: 3600 }), e.json({ success: true }));
 });
 v.post("/api/location/permission", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const { friendId: r, allow: a } = await e.req.json(), o = await e.env.KV.get(`loc_perm:${t.userId}`), n = o ? JSON.parse(o) : {};
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const { friendId: r, allow: a } = await e.req.json(), s = await e.env.KV.get(`loc_perm:${t.userId}`), n = s ? JSON.parse(s) : {};
   return n[r.toLowerCase()] = !!a, await e.env.KV.put(`loc_perm:${t.userId}`, JSON.stringify(n)), e.json({ success: true });
 });
 v.post("/api/location/view", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const { friendId: r, show: a } = await e.req.json(), o = await e.env.KV.get(`view_perm:${t.userId}`), n = o ? JSON.parse(o) : {};
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const { friendId: r, show: a } = await e.req.json(), s = await e.env.KV.get(`view_perm:${t.userId}`), n = s ? JSON.parse(s) : {};
   return n[r.toLowerCase()] = !!a, await e.env.KV.put(`view_perm:${t.userId}`, JSON.stringify(n)), e.json({ success: true });
 });
 v.get("/api/rooms", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const r = await e.env.KV.get(`rooms:${t.userId}`), a = r ? JSON.parse(r) : [];
   if (!a.length) return e.json({ rooms: [] });
-  const n = (await Promise.all(a.map((s) => e.env.KV.get(`room:${s}`)))).filter(Boolean).map((s) => JSON.parse(s));
+  const n = (await Promise.all(a.map((o) => e.env.KV.get(`room:${o}`)))).filter(Boolean).map((o) => JSON.parse(o));
   return e.json({ rooms: n });
 });
 v.post("/api/rooms", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { name: r, memberIds: a } = await e.req.json();
   if (!r || !Array.isArray(a)) return e.json({ error: "name and memberIds required" }, 400);
-  const o = [.../* @__PURE__ */ new Set([t.userId, ...a.map((i) => i.toLowerCase())])], n = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, s = { roomId: n, name: r, type: "group", members: o, createdBy: t.userId, createdAt: Date.now(), locShare: false };
-  return await e.env.KV.put(`room:${n}`, JSON.stringify(s), { expirationTtl: 86400 * 30 }), await Promise.all(o.map(async (i) => {
-    const l = await e.env.KV.get(`rooms:${i}`), c = l ? JSON.parse(l) : [];
-    c.includes(n) || c.push(n), await e.env.KV.put(`rooms:${i}`, JSON.stringify(c));
-  })), e.json({ success: true, room: s });
+  const s = [.../* @__PURE__ */ new Set([t.userId, ...a.map((i) => i.toLowerCase())])], n = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, o = { roomId: n, name: r, type: "group", members: s, createdBy: t.userId, createdAt: Date.now(), locShare: false };
+  return await e.env.KV.put(`room:${n}`, JSON.stringify(o), { expirationTtl: 86400 * 30 }), await Promise.all(s.map(async (i) => {
+    const l = await e.env.KV.get(`rooms:${i}`), d = l ? JSON.parse(l) : [];
+    d.includes(n) || d.push(n), await e.env.KV.put(`rooms:${i}`, JSON.stringify(d));
+  })), e.json({ success: true, room: o });
 });
 v.post("/api/rooms/dm", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { targetUserId: r } = await e.req.json(), a = r == null ? void 0 : r.toLowerCase();
   if (!a) return e.json({ error: "targetUserId required" }, 400);
-  const o = `dm_${[t.userId, a].sort().join("_")}`, n = await e.env.KV.get(`room:${o}`);
+  const s = `dm_${[t.userId, a].sort().join("_")}`, n = await e.env.KV.get(`room:${s}`);
   if (n) return e.json({ success: true, room: JSON.parse(n) });
-  const s = await e.env.KV.get(`user:${a}`);
-  if (!s) return e.json({ error: "\uC874\uC7AC\uD558\uC9C0 \uC54A\uB294 \uC0AC\uC6A9\uC790\uC785\uB2C8\uB2E4" }, 404);
-  const i = JSON.parse(s), l = { roomId: o, name: i.displayName, type: "dm", members: [t.userId, a], createdBy: t.userId, createdAt: Date.now(), locShare: false };
-  return await e.env.KV.put(`room:${o}`, JSON.stringify(l), { expirationTtl: 86400 * 30 }), await Promise.all([t.userId, a].map(async (c) => {
-    const p = await e.env.KV.get(`rooms:${c}`), u = p ? JSON.parse(p) : [];
-    u.includes(o) || u.push(o), await e.env.KV.put(`rooms:${c}`, JSON.stringify(u));
+  const o = await e.env.KV.get(`user:${a}`);
+  if (!o) return e.json({ error: "\uC874\uC7AC\uD558\uC9C0 \uC54A\uB294 \uC0AC\uC6A9\uC790\uC785\uB2C8\uB2E4" }, 404);
+  const i = JSON.parse(o), l = { roomId: s, name: i.displayName, type: "dm", members: [t.userId, a], createdBy: t.userId, createdAt: Date.now(), locShare: false };
+  return await e.env.KV.put(`room:${s}`, JSON.stringify(l), { expirationTtl: 86400 * 30 }), await Promise.all([t.userId, a].map(async (d) => {
+    const p = await e.env.KV.get(`rooms:${d}`), u = p ? JSON.parse(p) : [];
+    u.includes(s) || u.push(s), await e.env.KV.put(`rooms:${d}`, JSON.stringify(u));
   })), e.json({ success: true, room: l });
 });
 v.post("/api/rooms/:roomId/locshare", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const r = e.req.param("roomId"), { enabled: a } = await e.req.json(), o = await e.env.KV.get(`room:${r}`);
-  if (!o) return e.json({ error: "Room not found" }, 404);
-  const n = JSON.parse(o);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const r = e.req.param("roomId"), { enabled: a } = await e.req.json(), s = await e.env.KV.get(`room:${r}`);
+  if (!s) return e.json({ error: "Room not found" }, 404);
+  const n = JSON.parse(s);
   return n.members.includes(t.userId) ? (n.locShare = !!a, await e.env.KV.put(`room:${r}`, JSON.stringify(n), { expirationTtl: 86400 * 30 }), e.json({ success: true, locShare: n.locShare })) : e.json({ error: "Not a member" }, 403);
 });
 v.get("/api/rooms/:roomId/locations", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const r = e.req.param("roomId"), a = await e.env.KV.get(`room:${r}`);
   if (!a) return e.json({ locations: [], locShare: false });
-  const o = JSON.parse(a);
-  if (!o.members.includes(t.userId)) return e.json({ error: "Not a member" }, 403);
-  if (!o.locShare) return e.json({ locations: [], locShare: false });
-  const n = await Promise.all(o.members.map(async (s) => {
-    const [i, l] = await Promise.all([e.env.KV.get(`user:${s}`), e.env.KV.get(`loc:${s}`)]);
+  const s = JSON.parse(a);
+  if (!s.members.includes(t.userId)) return e.json({ error: "Not a member" }, 403);
+  if (!s.locShare) return e.json({ locations: [], locShare: false });
+  const n = await Promise.all(s.members.map(async (o) => {
+    const [i, l] = await Promise.all([e.env.KV.get(`user:${o}`), e.env.KV.get(`loc:${o}`)]);
     if (!i || !l) return null;
-    const c = JSON.parse(i), p = JSON.parse(l);
-    return { userId: s, displayName: c.displayName, avatar: c.avatar, ...p };
+    const d = JSON.parse(i), p = JSON.parse(l);
+    return { userId: o, displayName: d.displayName, avatar: d.avatar, ...p };
   }));
   return e.json({ locations: n.filter(Boolean), locShare: true });
 });
 v.post("/api/rooms/:roomId/leave", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const r = e.req.param("roomId"), a = await e.env.KV.get(`rooms:${t.userId}`), o = a ? JSON.parse(a) : [];
-  return await e.env.KV.put(`rooms:${t.userId}`, JSON.stringify(o.filter((n) => n !== r))), e.json({ success: true });
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const r = e.req.param("roomId"), a = await e.env.KV.get(`rooms:${t.userId}`), s = a ? JSON.parse(a) : [];
+  return await e.env.KV.put(`rooms:${t.userId}`, JSON.stringify(s.filter((n) => n !== r))), e.json({ success: true });
 });
 v.post("/api/chat", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const { roomId: r, message: a, type: o } = await e.req.json();
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const { roomId: r, message: a, type: s } = await e.req.json();
   if (!r || !a) return e.json({ error: "missing" }, 400);
   const n = await e.env.KV.get(`room:${r}`);
   if (!n) return e.json({ error: "Room not found" }, 404);
   if (!JSON.parse(n).members.includes(t.userId)) return e.json({ error: "Not a member" }, 403);
   const i = Date.now(), l = `${i}_${Math.random().toString(36).substr(2, 6)}`;
-  return await e.env.KV.put(`chat:${r}:${l}`, JSON.stringify({ msgId: l, userId: t.userId, userName: t.displayName, avatar: t.avatar, message: a, type: o || "text", timestamp: i }), { expirationTtl: 86400 * 2 }), e.json({ success: true, msgId: l, timestamp: i });
+  return await e.env.KV.put(`chat:${r}:${l}`, JSON.stringify({ msgId: l, userId: t.userId, userName: t.displayName, avatar: t.avatar, message: a, type: s || "text", timestamp: i }), { expirationTtl: 86400 * 2 }), e.json({ success: true, msgId: l, timestamp: i });
 });
 v.get("/api/chat/:roomId", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const r = e.req.param("roomId"), a = await e.env.KV.get(`room:${r}`);
   if (!a) return e.json({ messages: [] });
   if (!JSON.parse(a).members.includes(t.userId)) return e.json({ error: "Not a member" }, 403);
@@ -1251,62 +1178,62 @@ v.get("/api/chat/:roomId", async (e) => {
     return Number(((f = p.name.split(":")[2]) == null ? void 0 : f.split("_")[0]) || "0") > n;
   });
   if (!i.length) return e.json({ messages: [] });
-  const c = (await Promise.all(i.map((p) => e.env.KV.get(p.name)))).filter(Boolean).map((p) => JSON.parse(p)).filter((p) => p.timestamp > n);
-  return c.sort((p, u) => p.timestamp - u.timestamp), e.json({ messages: c.slice(-60) });
+  const d = (await Promise.all(i.map((p) => e.env.KV.get(p.name)))).filter(Boolean).map((p) => JSON.parse(p)).filter((p) => p.timestamp > n);
+  return d.sort((p, u) => p.timestamp - u.timestamp), e.json({ messages: d.slice(-60) });
 });
 v.post("/api/sos", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const { lat: r, lng: a } = await e.req.json(), o = await e.env.KV.get(`friends:${t.userId}`), n = o ? JSON.parse(o) : [], s = Date.now(), i = `sos_${t.userId}_${s}`;
-  return await e.env.KV.put(`sos:${i}`, JSON.stringify({ msgId: `${s}_sos`, userId: t.userId, userName: t.displayName, avatar: t.avatar, message: `\u{1F198} SOS! ${t.displayName}\uB2D8\uC774 \uAE34\uAE09 \uB3C4\uC6C0\uC744 \uC694\uCCAD\uD569\uB2C8\uB2E4!`, lat: r, lng: a, sosId: i, targets: [t.userId, ...n], timestamp: s, active: true, acknowledgedBy: [] }), { expirationTtl: 3600 }), e.json({ success: true, sosId: i });
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const { lat: r, lng: a } = await e.req.json(), s = await e.env.KV.get(`friends:${t.userId}`), n = s ? JSON.parse(s) : [], o = Date.now(), i = `sos_${t.userId}_${o}`;
+  return await e.env.KV.put(`sos:${i}`, JSON.stringify({ msgId: `${o}_sos`, userId: t.userId, userName: t.displayName, avatar: t.avatar, message: `\u{1F198} SOS! ${t.displayName}\uB2D8\uC774 \uAE34\uAE09 \uB3C4\uC6C0\uC744 \uC694\uCCAD\uD569\uB2C8\uB2E4!`, lat: r, lng: a, sosId: i, targets: [t.userId, ...n], timestamp: o, active: true, acknowledgedBy: [] }), { expirationTtl: 3600 }), e.json({ success: true, sosId: i });
 });
 v.post("/api/sos/acknowledge", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { sosId: r } = await e.req.json();
   if (!r) return e.json({ error: "sosId required" }, 400);
   const a = await e.env.KV.get(`sos:${r}`);
   if (!a) return e.json({ error: "SOS not found" }, 404);
-  const o = JSON.parse(a);
-  return o.acknowledgedBy.includes(t.userId) || o.acknowledgedBy.push(t.userId), await e.env.KV.put(`sos:${r}`, JSON.stringify(o), { expirationTtl: 3600 }), e.json({ success: true, acknowledgedBy: o.acknowledgedBy });
+  const s = JSON.parse(a);
+  return s.acknowledgedBy.includes(t.userId) || s.acknowledgedBy.push(t.userId), await e.env.KV.put(`sos:${r}`, JSON.stringify(s), { expirationTtl: 3600 }), e.json({ success: true, acknowledgedBy: s.acknowledgedBy });
 });
 v.post("/api/sos/dismiss", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
   const { sosId: r } = await e.req.json();
   if (!r) return e.json({ error: "sosId required" }, 400);
   const a = await e.env.KV.get(`sos:${r}`);
   if (!a) return e.json({ error: "SOS not found" }, 404);
-  const o = JSON.parse(a);
-  return o.userId !== t.userId ? e.json({ error: "Only sender can dismiss" }, 403) : (o.active = false, await e.env.KV.put(`sos:${r}`, JSON.stringify(o), { expirationTtl: 300 }), e.json({ success: true }));
+  const s = JSON.parse(a);
+  return s.userId !== t.userId ? e.json({ error: "Only sender can dismiss" }, 403) : (s.active = false, await e.env.KV.put(`sos:${r}`, JSON.stringify(s), { expirationTtl: 300 }), e.json({ success: true }));
 });
 v.get("/api/sos/check", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const r = Number(e.req.query("since") || "0"), o = (await e.env.KV.list({ prefix: "sos:sos_" })).keys.filter((i) => {
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const r = Number(e.req.query("since") || "0"), s = (await e.env.KV.list({ prefix: "sos:sos_" })).keys.filter((i) => {
     const l = i.name.split("_");
     return Number(l[l.length - 1] || "0") > r;
   });
-  if (!o.length) return e.json({ sos: [] });
-  const s = (await Promise.all(o.map((i) => e.env.KV.get(i.name)))).filter(Boolean).map((i) => JSON.parse(i)).filter((i) => i.timestamp > r && Array.isArray(i.targets) && i.targets.includes(t.userId));
-  return e.json({ sos: s });
+  if (!s.length) return e.json({ sos: [] });
+  const o = (await Promise.all(s.map((i) => e.env.KV.get(i.name)))).filter(Boolean).map((i) => JSON.parse(i)).filter((i) => i.timestamp > r && Array.isArray(i.targets) && i.targets.includes(t.userId));
+  return e.json({ sos: o });
 });
 v.post("/api/appointment", async (e) => {
   const t = await y(e);
-  if (!t) return e.json({ error: "Unauthorized" }, 401);
-  const { roomId: r, placeName: a, lat: o, lng: n } = await e.req.json();
-  return await e.env.KV.put(`apt:${r}`, JSON.stringify({ placeName: a, lat: o, lng: n, setBy: t.displayName, setAt: Date.now() }), { expirationTtl: 86400 }), e.json({ success: true });
+  if (!t) return e.json({ success: false, error: "Unauthorized" }, 401);
+  const { roomId: r, placeName: a, lat: s, lng: n } = await e.req.json();
+  return await e.env.KV.put(`apt:${r}`, JSON.stringify({ placeName: a, lat: s, lng: n, setBy: t.displayName, setAt: Date.now() }), { expirationTtl: 86400 }), e.json({ success: true });
 });
 v.get("/api/appointment/:roomId", async (e) => {
-  if (!await y(e)) return e.json({ error: "Unauthorized" }, 401);
+  if (!await y(e)) return e.json({ success: false, error: "Unauthorized" }, 401);
   const r = await e.env.KV.get(`apt:${e.req.param("roomId")}`);
   return e.json({ appointment: r ? JSON.parse(r) : null });
 });
 v.get("/api/transit", async (e) => {
-  const { sx: t, sy: r, ex: a, ey: o } = e.req.query(), n = e.env.ODSAY_API_KEY;
+  const { sx: t, sy: r, ex: a, ey: s } = e.req.query(), n = e.env.ODSAY_API_KEY;
   if (!n || n === "demo" || n.startsWith("\uC5EC\uAE30\uC5D0")) return e.json({ demo: true, result: { path: [{ pathType: 1, info: { totalTime: 38, payment: 1400, busTransitCount: 0, subwayTransitCount: 1 }, subPath: [{ trafficType: 1, sectionTime: 38, lane: [{ name: "2\uD638\uC120", subwayCode: 2 }], startName: "\uCD9C\uBC1C\uC5ED", endName: "\uB3C4\uCC29\uC5ED" }] }, { pathType: 3, info: { totalTime: 52, payment: 1400, busTransitCount: 2, subwayTransitCount: 0 }, subPath: [{ trafficType: 2, sectionTime: 25, lane: [{ busNo: "147" }], startName: "\uC815\uB958\uC7A5", endName: "\uD658\uC2B9" }, { trafficType: 2, sectionTime: 27, lane: [{ busNo: "3412" }], startName: "\uD658\uC2B9", endName: "\uBAA9\uC801\uC9C0" }] }] } });
   try {
-    const s = `https://api.odsay.com/v1/api/searchPubTransPathT?SX=${t}&SY=${r}&EX=${a}&EY=${o}&apiKey=${n}`, i = await fetch(s);
+    const o = `https://api.odsay.com/v1/api/searchPubTransPathT?SX=${t}&SY=${r}&EX=${a}&EY=${s}&apiKey=${n}`, i = await fetch(o);
     return e.json(await i.json());
   } catch {
     return e.json({ error: "API error" }, 500);
@@ -1852,6 +1779,8 @@ if('serviceWorker' in navigator){
 //  STATE
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 const S = {
+  // \u2500\u2500 \uC778\uC99D \uC0C1\uD0DC: loading | authenticated | unauthenticated
+  authState:'loading',
   token:null, userId:null, displayName:null, avatar:null,
   lat:null, lng:null,
   map:null, myMarker:null, friendMarkers:{},
@@ -1868,7 +1797,6 @@ const S = {
   globalLocShare:true,
   locPanelOpen:false,
   MCOLORS:['#7c3aed','#ec4899','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'],
-  // \uC131\uB2A5: \uB9C8\uC9C0\uB9C9 \uD3F4\uB9C1 \uACB0\uACFC \uD574\uC2DC (\uBCC0\uACBD \uC5C6\uC73C\uBA74 UI \uAC31\uC2E0 \uC2A4\uD0B5)
   _friendsHash:'', _roomsHash:'', _reqHash:'',
 }
 const AVATARS=['\u{1F43B}','\u{1F98A}','\u{1F431}','\u{1F436}','\u{1F438}','\u{1F427}','\u{1F428}','\u{1F981}','\u{1F42F}','\u{1F43A}','\u{1F984}','\u{1F43C}']
@@ -1876,10 +1804,56 @@ const AVATARS=['\u{1F43B}','\u{1F98A}','\u{1F431}','\u{1F436}','\u{1F438}','\u{1
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  AUTH
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-function initAuth(){
-  const saved=localStorage.getItem('meetup_auth')
-  if(saved){try{const d=JSON.parse(saved);S.token=d.token;S.userId=d.userId;S.displayName=d.displayName;S.avatar=d.avatar;S.globalLocShare=localStorage.getItem('meetup_loc_share')!=='false';startApp();return}catch(e){localStorage.removeItem('meetup_auth')}}
-  renderAvatarGrid()
+
+// \uC778\uC99D \uC0C1\uD0DC \uC804\uD658 \uC911 auth \uD654\uBA74\uC774 \uC21C\uAC04 \uBCF4\uC774\uB294 \uAE5C\uBE61\uC784 \uBC29\uC9C0:
+// html\uC5D0 #screen-auth\uB97C \uAE30\uBCF8 \uC228\uAE40(opacity:0)\uC73C\uB85C \uB450\uACE0
+// loading \uC644\uB8CC \uD6C4 \uCD5C\uC885 \uC0C1\uD0DC\uB85C\uB9CC \uD45C\uC2DC\uD55C\uB2E4.
+function setAuthState(state){
+  S.authState = state
+  const authEl = document.getElementById('screen-auth')
+  const mainEl = document.getElementById('screen-main')
+  if(state === 'loading'){
+    // \uC591\uCABD \uBAA8\uB450 \uC228\uAE40 \u2014 \uAE5C\uBE61\uC784 \uC5C6\uC74C
+    authEl.style.display = 'none'
+    mainEl.classList.remove('visible')
+  } else if(state === 'authenticated'){
+    authEl.style.display = 'none'
+    mainEl.classList.add('visible')
+  } else {
+    // unauthenticated
+    authEl.style.display = 'flex'
+    mainEl.classList.remove('visible')
+  }
+}
+
+async function initAuth(){
+  setAuthState('loading')
+  const saved = localStorage.getItem('meetup_auth')
+  if(!saved){ setAuthState('unauthenticated'); renderAvatarGrid(); return }
+  let d
+  try{ d = JSON.parse(saved) }catch(e){ localStorage.removeItem('meetup_auth'); setAuthState('unauthenticated'); renderAvatarGrid(); return }
+  // \uD1A0\uD070\uC774 null/undefined \uBB38\uC790\uC5F4\uC774\uBA74 \uBC14\uB85C \uD3D0\uAE30
+  if(!d.token || d.token === 'null' || d.token === 'undefined'){
+    localStorage.removeItem('meetup_auth'); setAuthState('unauthenticated'); renderAvatarGrid(); return
+  }
+  // /api/me \uB85C \uC11C\uBC84 \uCE21 \uC138\uC158 \uAC80\uC99D (\uC0C8\uB85C\uACE0\uCE68 \uC548\uC815\uD654)
+  try{
+    const r = await fetch('/api/me', { headers:{ 'Authorization':'Bearer '+d.token } })
+    if(!r.ok){ throw new Error('session_expired') }
+    const me = await r.json()
+    // \uC11C\uBC84 \uB370\uC774\uD130\uB85C S \uAC31\uC2E0 (localStorage \uAC12\uACFC \uBD88\uC77C\uCE58 \uBC29\uC9C0)
+    d.displayName = me.displayName
+    d.avatar = me.avatar
+    d.userId = me.userId
+    localStorage.setItem('meetup_auth', JSON.stringify(d))
+  }catch(e){
+    localStorage.removeItem('meetup_auth')
+    setAuthState('unauthenticated'); renderAvatarGrid(); return
+  }
+  S.token=d.token; S.userId=d.userId; S.displayName=d.displayName; S.avatar=d.avatar
+  S.globalLocShare = localStorage.getItem('meetup_loc_share') !== 'false'
+  setAuthState('authenticated')
+  startApp()
 }
 function renderAvatarGrid(){
   window._selAvatar=AVATARS[0]
@@ -1892,7 +1866,15 @@ async function doLogin(){
   const userId=document.getElementById('login-id').value.trim()
   const password=document.getElementById('login-pw').value
   if(!userId||!password){showAuthError('\uC544\uC774\uB514\uC640 \uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694');return}
-  try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password})});const d=await r.json();if(!r.ok){showAuthError(d.error||'\uB85C\uADF8\uC778 \uC2E4\uD328');return}saveAuth(d);startApp()}catch(e){showAuthError('\uC11C\uBC84 \uC5F0\uACB0 \uC2E4\uD328')}
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password})})
+    const d=await r.json()
+    if(!r.ok){showAuthError(d.error||'\uB85C\uADF8\uC778 \uC2E4\uD328');return}
+    saveAuth(d)
+    S.globalLocShare=localStorage.getItem('meetup_loc_share')!=='false'
+    setAuthState('authenticated')
+    startApp()
+  }catch(e){showAuthError('\uC11C\uBC84 \uC5F0\uACB0 \uC2E4\uD328')}
 }
 async function doRegister(){
   const userId=document.getElementById('reg-id').value.trim()
@@ -1900,23 +1882,79 @@ async function doRegister(){
   const displayName=document.getElementById('reg-name').value.trim()
   const avatar=window._selAvatar||AVATARS[0]
   if(!userId||!password||!displayName){showAuthError('\uBAA8\uB4E0 \uD56D\uBAA9\uC744 \uC785\uB825\uD574\uC8FC\uC138\uC694');return}
-  try{const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password,displayName,avatar})});const d=await r.json();if(!r.ok){showAuthError(d.error||'\uD68C\uC6D0\uAC00\uC785 \uC2E4\uD328');return}saveAuth(d);startApp()}catch(e){showAuthError('\uC11C\uBC84 \uC5F0\uACB0 \uC2E4\uD328')}
+  try{
+    const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password,displayName,avatar})})
+    const d=await r.json()
+    if(!r.ok){showAuthError(d.error||'\uD68C\uC6D0\uAC00\uC785 \uC2E4\uD328');return}
+    saveAuth(d)
+    S.globalLocShare=true
+    setAuthState('authenticated')
+    startApp()
+  }catch(e){showAuthError('\uC11C\uBC84 \uC5F0\uACB0 \uC2E4\uD328')}
 }
-function saveAuth(d){S.token=d.token;S.userId=d.userId;S.displayName=d.displayName;S.avatar=d.avatar;localStorage.setItem('meetup_auth',JSON.stringify({token:d.token,userId:d.userId,displayName:d.displayName,avatar:d.avatar}))}
+function saveAuth(d){
+  S.token=d.token; S.userId=d.userId; S.displayName=d.displayName; S.avatar=d.avatar
+  localStorage.setItem('meetup_auth',JSON.stringify({token:d.token,userId:d.userId,displayName:d.displayName,avatar:d.avatar}))
+}
+
+// \uC0C1\uD0DC \uC644\uC804 \uCD08\uAE30\uD654 (\uB85C\uADF8\uC544\uC6C3 / \uC138\uC158 \uB9CC\uB8CC \uACF5\uC6A9)
+function resetState(){
+  clearInterval(S.pollTimer); clearInterval(S.locTimer)
+  S.pollTimer=null; S.locTimer=null
+  S.token=null; S.userId=null; S.displayName=null; S.avatar=null
+  S.lat=null; S.lng=null
+  S.friends=[]; S.pendingReqs=[]
+  S.rooms=[]; S.currentRoom=null; S.currentRoomName=''; S.currentRoomData=null
+  S.lastChatTs=0; S.lastSOSTs=0
+  S.unreadChat=0; S.roomUnread={}
+  S.activeSOS=null
+  S._friendsHash=''; S._roomsHash=''; S._reqHash=''
+  S.appointment=null; S.selectedPlace=null; S.midpointData=null
+  S.locPanelOpen=false
+  // \uC9C0\uB3C4 \uB9C8\uCEE4 \uC815\uB9AC
+  if(S.myMarker){ try{S.myMarker.setMap(null)}catch(e){} ; S.myMarker=null }
+  Object.values(S.friendMarkers).forEach(m=>{try{m.setMap(null)}catch(e){}})
+  S.friendMarkers={}
+  if(S.aptMarker){ try{S.aptMarker.setMap(null)}catch(e){} ; S.aptMarker=null }
+}
+
 function doLogout(){
   if(!confirm('\uB85C\uADF8\uC544\uC6C3 \uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?'))return
-  clearInterval(S.pollTimer);clearInterval(S.locTimer)
   if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>{if(r.active)r.active.postMessage({type:'LOGOUT'})}).catch(()=>{})
-  localStorage.removeItem('meetup_auth');location.reload()
+  localStorage.removeItem('meetup_auth')
+  resetState()
+  // \uCC44\uD305 \uC785\uB825 \uBE44\uD65C\uC131\uD654
+  const ci=document.getElementById('chat-input');if(ci)ci.disabled=true
+  document.getElementById('chat-msgs').innerHTML='<div class="empty-state" style="margin:auto"><div class="e-icon">\u{1F4AC}</div><p>\uCC44\uD305\uBC29\uC744 \uC120\uD0DD\uD558\uAC70\uB098<br/>\uC0C8\uB85C \uB9CC\uB4E4\uC5B4\uBCF4\uC138\uC694</p></div>'
+  document.getElementById('chat-room-select').innerHTML=''
+  document.getElementById('room-loc-btn').style.display='none'
+  renderAvatarGrid()
+  setAuthState('unauthenticated')
 }
-function api(path,opts={}){return fetch(path,{...opts,headers:{'Authorization':'Bearer '+S.token,'Content-Type':'application/json',...(opts.headers||{})}})}
+
+// api() : S.token\uC774 \uC5C6\uC73C\uBA74 \uC694\uCCAD\uC744 \uBCF4\uB0B4\uC9C0 \uC54A\uACE0 \uBC14\uB85C 401 \uC720\uC0AC \uC751\uB2F5 \uBC18\uD658
+function api(path,opts={}){
+  if(!S.token) return Promise.resolve(new Response(JSON.stringify({success:false,error:'Unauthorized'}),{status:401,headers:{'Content-Type':'application/json'}}))
+  return fetch(path,{...opts,headers:{'Authorization':'Bearer '+S.token,'Content-Type':'application/json',...(opts.headers||{})}})
+    .then(r=>{
+      // 401 \uC218\uC2E0 \uC2DC \uC138\uC158 \uB9CC\uB8CC \uCC98\uB9AC
+      if(r.status===401 && S.token){
+        console.warn('[meetup] \uC138\uC158 \uB9CC\uB8CC \u2014 \uB85C\uADF8\uC778 \uD654\uBA74\uC73C\uB85C \uC774\uB3D9')
+        localStorage.removeItem('meetup_auth')
+        resetState()
+        renderAvatarGrid()
+        setAuthState('unauthenticated')
+        showToast('\uB85C\uADF8\uC778\uC774 \uB9CC\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uB85C\uADF8\uC778\uD574\uC8FC\uC138\uC694.','error')
+      }
+      return r
+    })
+}
 
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 //  \uC571 \uC2DC\uC791 & \uD3F4\uB9C1 (\uC131\uB2A5 \uCD5C\uC801\uD654)
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 function startApp(){
-  document.getElementById('screen-auth').style.display='none'
-  document.getElementById('screen-main').classList.add('visible')
+  // \uD654\uBA74 \uC804\uD658\uC740 setAuthState('authenticated')\uC5D0\uC11C \uCC98\uB9AC \u2014 \uC911\uBCF5 \uD638\uCD9C \uBC29\uC9C0
   document.getElementById('my-avatar-btn').textContent=S.avatar||'\u{1F43B}'
   document.getElementById('profile-avatar').textContent=S.avatar||'\u{1F43B}'
   document.getElementById('profile-name').textContent=S.displayName
@@ -2475,7 +2513,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 </html>`;
 }
 __name(ir, "ir");
-__name2(ir, "ir");
 var Ye = new vt();
 var lr = Object.assign({ "/src/index.tsx": v });
 var wt = false;
@@ -2495,7 +2532,9 @@ for (const [, e] of Object.entries(lr)) e && (Ye.all("*", (t) => {
   return e.fetch(t.req.raw, t.env, r);
 }), wt = true);
 if (!wt) throw new Error("Can't import modules from ['/src/index.ts','/src/index.tsx','/app/server.ts']");
-var drainBody = /* @__PURE__ */ __name2(async (request, env, _ctx, middlewareCtx) => {
+
+// ../node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
+var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
   try {
     return await middlewareCtx.next(request, env);
   } finally {
@@ -2511,6 +2550,8 @@ var drainBody = /* @__PURE__ */ __name2(async (request, env, _ctx, middlewareCtx
   }
 }, "drainBody");
 var middleware_ensure_req_body_drained_default = drainBody;
+
+// ../node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
 function reduceError(e) {
   return {
     name: e?.name,
@@ -2520,8 +2561,7 @@ function reduceError(e) {
   };
 }
 __name(reduceError, "reduceError");
-__name2(reduceError, "reduceError");
-var jsonError = /* @__PURE__ */ __name2(async (request, env, _ctx, middlewareCtx) => {
+var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
   try {
     return await middlewareCtx.next(request, env);
   } catch (e) {
@@ -2533,17 +2573,20 @@ var jsonError = /* @__PURE__ */ __name2(async (request, env, _ctx, middlewareCtx
   }
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
+
+// ../.wrangler/tmp/bundle-TQmzVj/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
 ];
 var middleware_insertion_facade_default = Ye;
+
+// ../node_modules/wrangler/templates/middleware/common.ts
 var __facade_middleware__ = [];
 function __facade_register__(...args) {
   __facade_middleware__.push(...args.flat());
 }
 __name(__facade_register__, "__facade_register__");
-__name2(__facade_register__, "__facade_register__");
 function __facade_invokeChain__(request, env, ctx, dispatch, middlewareChain) {
   const [head, ...tail] = middlewareChain;
   const middlewareCtx = {
@@ -2555,7 +2598,6 @@ function __facade_invokeChain__(request, env, ctx, dispatch, middlewareChain) {
   return head(request, env, ctx, middlewareCtx);
 }
 __name(__facade_invokeChain__, "__facade_invokeChain__");
-__name2(__facade_invokeChain__, "__facade_invokeChain__");
 function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
   return __facade_invokeChain__(request, env, ctx, dispatch, [
     ...__facade_middleware__,
@@ -2563,18 +2605,16 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
   ]);
 }
 __name(__facade_invoke__, "__facade_invoke__");
-__name2(__facade_invoke__, "__facade_invoke__");
+
+// ../.wrangler/tmp/bundle-TQmzVj/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
-  static {
-    __name(this, "___Facade_ScheduledController__");
-  }
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
     this.cron = cron;
     this.#noRetry = noRetry;
   }
   static {
-    __name2(this, "__Facade_ScheduledController__");
+    __name(this, "__Facade_ScheduledController__");
   }
   #noRetry;
   noRetry() {
@@ -2591,7 +2631,7 @@ function wrapExportedHandler(worker) {
   for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__) {
     __facade_register__(middleware);
   }
-  const fetchDispatcher = /* @__PURE__ */ __name2(function(request, env, ctx) {
+  const fetchDispatcher = /* @__PURE__ */ __name(function(request, env, ctx) {
     if (worker.fetch === void 0) {
       throw new Error("Handler does not export a fetch() function.");
     }
@@ -2600,7 +2640,7 @@ function wrapExportedHandler(worker) {
   return {
     ...worker,
     fetch(request, env, ctx) {
-      const dispatcher = /* @__PURE__ */ __name2(function(type, init) {
+      const dispatcher = /* @__PURE__ */ __name(function(type, init) {
         if (type === "scheduled" && worker.scheduled !== void 0) {
           const controller = new __Facade_ScheduledController__(
             Date.now(),
@@ -2616,7 +2656,6 @@ function wrapExportedHandler(worker) {
   };
 }
 __name(wrapExportedHandler, "wrapExportedHandler");
-__name2(wrapExportedHandler, "wrapExportedHandler");
 function wrapWorkerEntrypoint(klass) {
   if (__INTERNAL_WRANGLER_MIDDLEWARE__ === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__.length === 0) {
     return klass;
@@ -2625,7 +2664,7 @@ function wrapWorkerEntrypoint(klass) {
     __facade_register__(middleware);
   }
   return class extends klass {
-    #fetchDispatcher = /* @__PURE__ */ __name2((request, env, ctx) => {
+    #fetchDispatcher = /* @__PURE__ */ __name((request, env, ctx) => {
       this.env = env;
       this.ctx = ctx;
       if (super.fetch === void 0) {
@@ -2633,7 +2672,7 @@ function wrapWorkerEntrypoint(klass) {
       }
       return super.fetch(request);
     }, "#fetchDispatcher");
-    #dispatcher = /* @__PURE__ */ __name2((type, init) => {
+    #dispatcher = /* @__PURE__ */ __name((type, init) => {
       if (type === "scheduled" && super.scheduled !== void 0) {
         const controller = new __Facade_ScheduledController__(
           Date.now(),
@@ -2656,7 +2695,6 @@ function wrapWorkerEntrypoint(klass) {
   };
 }
 __name(wrapWorkerEntrypoint, "wrapWorkerEntrypoint");
-__name2(wrapWorkerEntrypoint, "wrapWorkerEntrypoint");
 var WRAPPED_ENTRY;
 if (typeof middleware_insertion_facade_default === "object") {
   WRAPPED_ENTRY = wrapExportedHandler(middleware_insertion_facade_default);
@@ -2664,232 +2702,8 @@ if (typeof middleware_insertion_facade_default === "object") {
   WRAPPED_ENTRY = wrapWorkerEntrypoint(middleware_insertion_facade_default);
 }
 var middleware_loader_entry_default = WRAPPED_ENTRY;
-
-// node_modules/wrangler/templates/pages-dev-util.ts
-function isRoutingRuleMatch(pathname, routingRule) {
-  if (!pathname) {
-    throw new Error("Pathname is undefined.");
-  }
-  if (!routingRule) {
-    throw new Error("Routing rule is undefined.");
-  }
-  const ruleRegExp = transformRoutingRuleToRegExp(routingRule);
-  return pathname.match(ruleRegExp) !== null;
-}
-__name(isRoutingRuleMatch, "isRoutingRuleMatch");
-function transformRoutingRuleToRegExp(rule) {
-  let transformedRule;
-  if (rule === "/" || rule === "/*") {
-    transformedRule = rule;
-  } else if (rule.endsWith("/*")) {
-    transformedRule = `${rule.substring(0, rule.length - 2)}(/*)?`;
-  } else if (rule.endsWith("/")) {
-    transformedRule = `${rule.substring(0, rule.length - 1)}(/)?`;
-  } else if (rule.endsWith("*")) {
-    transformedRule = rule;
-  } else {
-    transformedRule = `${rule}(/)?`;
-  }
-  transformedRule = `^${transformedRule.replaceAll(/\./g, "\\.").replaceAll(/\*/g, ".*")}$`;
-  return new RegExp(transformedRule);
-}
-__name(transformRoutingRuleToRegExp, "transformRoutingRuleToRegExp");
-
-// .wrangler/tmp/pages-v33l1c/d627ww5bri7.js
-var define_ROUTES_default = { version: 1, include: ["/*"], exclude: ["/static/*", "/icon-*.png", "/manifest.json", "/.well-known/*"] };
-var routes = define_ROUTES_default;
-var pages_dev_pipeline_default = {
-  fetch(request, env, context) {
-    const { pathname } = new URL(request.url);
-    for (const exclude of routes.exclude) {
-      if (isRoutingRuleMatch(pathname, exclude)) {
-        return env.ASSETS.fetch(request);
-      }
-    }
-    for (const include of routes.include) {
-      if (isRoutingRuleMatch(pathname, include)) {
-        const workerAsHandler = middleware_loader_entry_default;
-        if (workerAsHandler.fetch === void 0) {
-          throw new TypeError("Entry point missing `fetch` handler");
-        }
-        return workerAsHandler.fetch(request, env, context);
-      }
-    }
-    return env.ASSETS.fetch(request);
-  }
-};
-
-// node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
-var drainBody2 = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
-  try {
-    return await middlewareCtx.next(request, env);
-  } finally {
-    try {
-      if (request.body !== null && !request.bodyUsed) {
-        const reader = request.body.getReader();
-        while (!(await reader.read()).done) {
-        }
-      }
-    } catch (e) {
-      console.error("Failed to drain the unused request body.", e);
-    }
-  }
-}, "drainBody");
-var middleware_ensure_req_body_drained_default2 = drainBody2;
-
-// node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
-function reduceError2(e) {
-  return {
-    name: e?.name,
-    message: e?.message ?? String(e),
-    stack: e?.stack,
-    cause: e?.cause === void 0 ? void 0 : reduceError2(e.cause)
-  };
-}
-__name(reduceError2, "reduceError");
-var jsonError2 = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
-  try {
-    return await middlewareCtx.next(request, env);
-  } catch (e) {
-    const error = reduceError2(e);
-    return Response.json(error, {
-      status: 500,
-      headers: { "MF-Experimental-Error-Stack": "true" }
-    });
-  }
-}, "jsonError");
-var middleware_miniflare3_json_error_default2 = jsonError2;
-
-// .wrangler/tmp/bundle-6f5498/middleware-insertion-facade.js
-var __INTERNAL_WRANGLER_MIDDLEWARE__2 = [
-  middleware_ensure_req_body_drained_default2,
-  middleware_miniflare3_json_error_default2
-];
-var middleware_insertion_facade_default2 = pages_dev_pipeline_default;
-
-// node_modules/wrangler/templates/middleware/common.ts
-var __facade_middleware__2 = [];
-function __facade_register__2(...args) {
-  __facade_middleware__2.push(...args.flat());
-}
-__name(__facade_register__2, "__facade_register__");
-function __facade_invokeChain__2(request, env, ctx, dispatch, middlewareChain) {
-  const [head, ...tail] = middlewareChain;
-  const middlewareCtx = {
-    dispatch,
-    next(newRequest, newEnv) {
-      return __facade_invokeChain__2(newRequest, newEnv, ctx, dispatch, tail);
-    }
-  };
-  return head(request, env, ctx, middlewareCtx);
-}
-__name(__facade_invokeChain__2, "__facade_invokeChain__");
-function __facade_invoke__2(request, env, ctx, dispatch, finalMiddleware) {
-  return __facade_invokeChain__2(request, env, ctx, dispatch, [
-    ...__facade_middleware__2,
-    finalMiddleware
-  ]);
-}
-__name(__facade_invoke__2, "__facade_invoke__");
-
-// .wrangler/tmp/bundle-6f5498/middleware-loader.entry.ts
-var __Facade_ScheduledController__2 = class ___Facade_ScheduledController__2 {
-  constructor(scheduledTime, cron, noRetry) {
-    this.scheduledTime = scheduledTime;
-    this.cron = cron;
-    this.#noRetry = noRetry;
-  }
-  static {
-    __name(this, "__Facade_ScheduledController__");
-  }
-  #noRetry;
-  noRetry() {
-    if (!(this instanceof ___Facade_ScheduledController__2)) {
-      throw new TypeError("Illegal invocation");
-    }
-    this.#noRetry();
-  }
-};
-function wrapExportedHandler2(worker) {
-  if (__INTERNAL_WRANGLER_MIDDLEWARE__2 === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__2.length === 0) {
-    return worker;
-  }
-  for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__2) {
-    __facade_register__2(middleware);
-  }
-  const fetchDispatcher = /* @__PURE__ */ __name(function(request, env, ctx) {
-    if (worker.fetch === void 0) {
-      throw new Error("Handler does not export a fetch() function.");
-    }
-    return worker.fetch(request, env, ctx);
-  }, "fetchDispatcher");
-  return {
-    ...worker,
-    fetch(request, env, ctx) {
-      const dispatcher = /* @__PURE__ */ __name(function(type, init) {
-        if (type === "scheduled" && worker.scheduled !== void 0) {
-          const controller = new __Facade_ScheduledController__2(
-            Date.now(),
-            init.cron ?? "",
-            () => {
-            }
-          );
-          return worker.scheduled(controller, env, ctx);
-        }
-      }, "dispatcher");
-      return __facade_invoke__2(request, env, ctx, dispatcher, fetchDispatcher);
-    }
-  };
-}
-__name(wrapExportedHandler2, "wrapExportedHandler");
-function wrapWorkerEntrypoint2(klass) {
-  if (__INTERNAL_WRANGLER_MIDDLEWARE__2 === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__2.length === 0) {
-    return klass;
-  }
-  for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__2) {
-    __facade_register__2(middleware);
-  }
-  return class extends klass {
-    #fetchDispatcher = /* @__PURE__ */ __name((request, env, ctx) => {
-      this.env = env;
-      this.ctx = ctx;
-      if (super.fetch === void 0) {
-        throw new Error("Entrypoint class does not define a fetch() function.");
-      }
-      return super.fetch(request);
-    }, "#fetchDispatcher");
-    #dispatcher = /* @__PURE__ */ __name((type, init) => {
-      if (type === "scheduled" && super.scheduled !== void 0) {
-        const controller = new __Facade_ScheduledController__2(
-          Date.now(),
-          init.cron ?? "",
-          () => {
-          }
-        );
-        return super.scheduled(controller);
-      }
-    }, "#dispatcher");
-    fetch(request) {
-      return __facade_invoke__2(
-        request,
-        this.env,
-        this.ctx,
-        this.#dispatcher,
-        this.#fetchDispatcher
-      );
-    }
-  };
-}
-__name(wrapWorkerEntrypoint2, "wrapWorkerEntrypoint");
-var WRAPPED_ENTRY2;
-if (typeof middleware_insertion_facade_default2 === "object") {
-  WRAPPED_ENTRY2 = wrapExportedHandler2(middleware_insertion_facade_default2);
-} else if (typeof middleware_insertion_facade_default2 === "function") {
-  WRAPPED_ENTRY2 = wrapWorkerEntrypoint2(middleware_insertion_facade_default2);
-}
-var middleware_loader_entry_default2 = WRAPPED_ENTRY2;
 export {
-  __INTERNAL_WRANGLER_MIDDLEWARE__2 as __INTERNAL_WRANGLER_MIDDLEWARE__,
-  middleware_loader_entry_default2 as default
+  __INTERNAL_WRANGLER_MIDDLEWARE__,
+  middleware_loader_entry_default as default
 };
-//# sourceMappingURL=d627ww5bri7.js.map
+//# sourceMappingURL=bundledWorker-0.7727656490722801.mjs.map

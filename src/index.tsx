@@ -18,8 +18,9 @@ function hashPassword(pw: string): string {
 
 async function getUser(c: any) {
   const auth = c.req.header('Authorization') || ''
-  const token = auth.replace('Bearer ', '')
-  if (!token) return null
+  // 'Bearer null' / 'Bearer undefined' 같은 잘못된 토큰 차단
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
+  if (!token || token === 'null' || token === 'undefined') return null
   const uid = await c.env.KV.get(`session:${token}`)
   if (!uid) return null
   const raw = await c.env.KV.get(`user:${uid}`)
@@ -57,8 +58,8 @@ app.post('/api/auth/login', async (c) => {
 
 app.get('/api/me', async (c) => {
   const user = await getUser(c)
-  if (!user) return c.json({ error: 'Unauthorized' }, 401)
-  return c.json({ userId: user.userId, displayName: user.displayName, avatar: user.avatar })
+  if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401)
+  return c.json({ success: true, userId: user.userId, displayName: user.displayName, avatar: user.avatar })
 })
 
 // ── 친구 ──────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ async function acceptFriendship(kv: KVNamespace, a: string, b: string) {
 
 app.post('/api/friends/request', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { targetUserId } = await c.req.json()
   const tid = targetUserId?.toLowerCase()
   if (!tid || tid === me.userId) return c.json({ error: '잘못된 요청' }, 400)
@@ -98,7 +99,7 @@ app.post('/api/friends/request', async (c) => {
 
 app.post('/api/friends/accept', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { fromUserId } = await c.req.json()
   const fid = fromUserId?.toLowerCase()
   await Promise.all([
@@ -110,7 +111,7 @@ app.post('/api/friends/accept', async (c) => {
 
 app.post('/api/friends/reject', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { fromUserId } = await c.req.json()
   await c.env.KV.delete(`friend_req:${me.userId}:${fromUserId?.toLowerCase()}`)
   return c.json({ success: true })
@@ -118,7 +119,7 @@ app.post('/api/friends/reject', async (c) => {
 
 app.get('/api/friends/requests', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const list = await c.env.KV.list({ prefix: `friend_req:${me.userId}:` })
   const vals = await Promise.all(list.keys.map(k => c.env.KV.get(k.name)))
   const requests = vals.filter(Boolean).map(v => JSON.parse(v!))
@@ -128,7 +129,7 @@ app.get('/api/friends/requests', async (c) => {
 // ── 친구 목록 + 위치 (병렬 최적화) ───────────────────────────
 app.get('/api/friends', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const [raw, myPermRaw, myViewRaw] = await Promise.all([
     c.env.KV.get(`friends:${me.userId}`),
     c.env.KV.get(`loc_perm:${me.userId}`),
@@ -158,7 +159,7 @@ app.get('/api/friends', async (c) => {
 // ── 위치 업로드 ────────────────────────────────────────────────
 app.post('/api/location', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { lat, lng, accuracy } = await c.req.json()
   if (!lat || !lng) return c.json({ error: 'lat/lng required' }, 400)
   await c.env.KV.put(`loc:${me.userId}`, JSON.stringify({ lat, lng, accuracy: accuracy || 20, updatedAt: Date.now() }), { expirationTtl: 3600 })
@@ -168,7 +169,7 @@ app.post('/api/location', async (c) => {
 // ── 위치 공개 권한 설정 ────────────────────────────────────────
 app.post('/api/location/permission', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { friendId, allow } = await c.req.json()
   const raw = await c.env.KV.get(`loc_perm:${me.userId}`)
   const perm: Record<string, boolean> = raw ? JSON.parse(raw) : {}
@@ -180,7 +181,7 @@ app.post('/api/location/permission', async (c) => {
 // ── 친구 위치 표시 설정 ────────────────────────────────────────
 app.post('/api/location/view', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { friendId, show } = await c.req.json()
   const raw = await c.env.KV.get(`view_perm:${me.userId}`)
   const perm: Record<string, boolean> = raw ? JSON.parse(raw) : {}
@@ -192,7 +193,7 @@ app.post('/api/location/view', async (c) => {
 // ── 채팅방 목록 조회 (everyone 제거) ──────────────────────────
 app.get('/api/rooms', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const raw = await c.env.KV.get(`rooms:${me.userId}`)
   const roomIds: string[] = raw ? JSON.parse(raw) : []
   if (!roomIds.length) return c.json({ rooms: [] })
@@ -204,7 +205,7 @@ app.get('/api/rooms', async (c) => {
 // ── 채팅방 생성 ───────────────────────────────────────────────
 app.post('/api/rooms', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { name, memberIds } = await c.req.json()
   if (!name || !Array.isArray(memberIds)) return c.json({ error: 'name and memberIds required' }, 400)
   const allMembers = [...new Set([me.userId, ...memberIds.map((id: string) => id.toLowerCase())])]
@@ -223,7 +224,7 @@ app.post('/api/rooms', async (c) => {
 // ── 채팅방 1:1 생성 or 기존 조회 ─────────────────────────────
 app.post('/api/rooms/dm', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { targetUserId } = await c.req.json()
   const tid = targetUserId?.toLowerCase()
   if (!tid) return c.json({ error: 'targetUserId required' }, 400)
@@ -247,7 +248,7 @@ app.post('/api/rooms/dm', async (c) => {
 // ── 채팅방 위치 공유 토글 ─────────────────────────────────────
 app.post('/api/rooms/:roomId/locshare', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
   const { enabled } = await c.req.json()
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
@@ -262,7 +263,7 @@ app.post('/api/rooms/:roomId/locshare', async (c) => {
 // ── 채팅방 멤버 위치 조회 ─────────────────────────────────────
 app.get('/api/rooms/:roomId/locations', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
   if (!roomRaw) return c.json({ locations: [], locShare: false })
@@ -282,7 +283,7 @@ app.get('/api/rooms/:roomId/locations', async (c) => {
 // ── 채팅방 나가기 ─────────────────────────────────────────────
 app.post('/api/rooms/:roomId/leave', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
   const rawR = await c.env.KV.get(`rooms:${me.userId}`)
   const rList: string[] = rawR ? JSON.parse(rawR) : []
@@ -293,7 +294,7 @@ app.post('/api/rooms/:roomId/leave', async (c) => {
 // ── 채팅 메시지 전송 ──────────────────────────────────────────
 app.post('/api/chat', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { roomId, message, type } = await c.req.json()
   if (!roomId || !message) return c.json({ error: 'missing' }, 400)
   // 멤버 확인
@@ -313,7 +314,7 @@ app.post('/api/chat', async (c) => {
 // ── 채팅 메시지 조회 (since 기반 최적화) ─────────────────────
 app.get('/api/chat/:roomId', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
   // 멤버 확인
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
@@ -336,7 +337,7 @@ app.get('/api/chat/:roomId', async (c) => {
 // ── SOS 발송 ──────────────────────────────────────────────────
 app.post('/api/sos', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { lat, lng } = await c.req.json()
   const raw = await c.env.KV.get(`friends:${me.userId}`)
   const friendIds: string[] = raw ? JSON.parse(raw) : []
@@ -354,7 +355,7 @@ app.post('/api/sos', async (c) => {
 // ── SOS 확인 ──────────────────────────────────────────────────
 app.post('/api/sos/acknowledge', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { sosId } = await c.req.json()
   if (!sosId) return c.json({ error: 'sosId required' }, 400)
   const raw = await c.env.KV.get(`sos:${sosId}`)
@@ -368,7 +369,7 @@ app.post('/api/sos/acknowledge', async (c) => {
 // ── SOS 종료 ──────────────────────────────────────────────────
 app.post('/api/sos/dismiss', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { sosId } = await c.req.json()
   if (!sosId) return c.json({ error: 'sosId required' }, 400)
   const raw = await c.env.KV.get(`sos:${sosId}`)
@@ -383,7 +384,7 @@ app.post('/api/sos/dismiss', async (c) => {
 // ── SOS 폴링 (내 친구가 보낸 활성 SOS만) ────────────────────
 app.get('/api/sos/check', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const since = Number(c.req.query('since') || '0')
   const list = await c.env.KV.list({ prefix: `sos:sos_` })
   const filtered = list.keys.filter(k => {
@@ -401,7 +402,7 @@ app.get('/api/sos/check', async (c) => {
 // ── 약속장소 ──────────────────────────────────────────────────
 app.post('/api/appointment', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const { roomId, placeName, lat, lng } = await c.req.json()
   await c.env.KV.put(`apt:${roomId}`, JSON.stringify({ placeName, lat, lng, setBy: me.displayName, setAt: Date.now() }), { expirationTtl: 86400 })
   return c.json({ success: true })
@@ -409,7 +410,7 @@ app.post('/api/appointment', async (c) => {
 
 app.get('/api/appointment/:roomId', async (c) => {
   const me = await getUser(c)
-  if (!me) return c.json({ error: 'Unauthorized' }, 401)
+  if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const val = await c.env.KV.get(`apt:${c.req.param('roomId')}`)
   return c.json({ appointment: val ? JSON.parse(val) : null })
 })
@@ -975,6 +976,8 @@ if('serviceWorker' in navigator){
 //  STATE
 // ════════════════════════════════════════════════════════
 const S = {
+  // ── 인증 상태: loading | authenticated | unauthenticated
+  authState:'loading',
   token:null, userId:null, displayName:null, avatar:null,
   lat:null, lng:null,
   map:null, myMarker:null, friendMarkers:{},
@@ -991,7 +994,6 @@ const S = {
   globalLocShare:true,
   locPanelOpen:false,
   MCOLORS:['#7c3aed','#ec4899','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'],
-  // 성능: 마지막 폴링 결과 해시 (변경 없으면 UI 갱신 스킵)
   _friendsHash:'', _roomsHash:'', _reqHash:'',
 }
 const AVATARS=['🐻','🦊','🐱','🐶','🐸','🐧','🐨','🦁','🐯','🐺','🦄','🐼']
@@ -999,10 +1001,56 @@ const AVATARS=['🐻','🦊','🐱','🐶','🐸','🐧','🐨','🦁','🐯','�
 // ════════════════════════════════════════════════════════
 //  AUTH
 // ════════════════════════════════════════════════════════
-function initAuth(){
-  const saved=localStorage.getItem('meetup_auth')
-  if(saved){try{const d=JSON.parse(saved);S.token=d.token;S.userId=d.userId;S.displayName=d.displayName;S.avatar=d.avatar;S.globalLocShare=localStorage.getItem('meetup_loc_share')!=='false';startApp();return}catch(e){localStorage.removeItem('meetup_auth')}}
-  renderAvatarGrid()
+
+// 인증 상태 전환 중 auth 화면이 순간 보이는 깜빡임 방지:
+// html에 #screen-auth를 기본 숨김(opacity:0)으로 두고
+// loading 완료 후 최종 상태로만 표시한다.
+function setAuthState(state){
+  S.authState = state
+  const authEl = document.getElementById('screen-auth')
+  const mainEl = document.getElementById('screen-main')
+  if(state === 'loading'){
+    // 양쪽 모두 숨김 — 깜빡임 없음
+    authEl.style.display = 'none'
+    mainEl.classList.remove('visible')
+  } else if(state === 'authenticated'){
+    authEl.style.display = 'none'
+    mainEl.classList.add('visible')
+  } else {
+    // unauthenticated
+    authEl.style.display = 'flex'
+    mainEl.classList.remove('visible')
+  }
+}
+
+async function initAuth(){
+  setAuthState('loading')
+  const saved = localStorage.getItem('meetup_auth')
+  if(!saved){ setAuthState('unauthenticated'); renderAvatarGrid(); return }
+  let d
+  try{ d = JSON.parse(saved) }catch(e){ localStorage.removeItem('meetup_auth'); setAuthState('unauthenticated'); renderAvatarGrid(); return }
+  // 토큰이 null/undefined 문자열이면 바로 폐기
+  if(!d.token || d.token === 'null' || d.token === 'undefined'){
+    localStorage.removeItem('meetup_auth'); setAuthState('unauthenticated'); renderAvatarGrid(); return
+  }
+  // /api/me 로 서버 측 세션 검증 (새로고침 안정화)
+  try{
+    const r = await fetch('/api/me', { headers:{ 'Authorization':'Bearer '+d.token } })
+    if(!r.ok){ throw new Error('session_expired') }
+    const me = await r.json()
+    // 서버 데이터로 S 갱신 (localStorage 값과 불일치 방지)
+    d.displayName = me.displayName
+    d.avatar = me.avatar
+    d.userId = me.userId
+    localStorage.setItem('meetup_auth', JSON.stringify(d))
+  }catch(e){
+    localStorage.removeItem('meetup_auth')
+    setAuthState('unauthenticated'); renderAvatarGrid(); return
+  }
+  S.token=d.token; S.userId=d.userId; S.displayName=d.displayName; S.avatar=d.avatar
+  S.globalLocShare = localStorage.getItem('meetup_loc_share') !== 'false'
+  setAuthState('authenticated')
+  startApp()
 }
 function renderAvatarGrid(){
   window._selAvatar=AVATARS[0]
@@ -1015,7 +1063,15 @@ async function doLogin(){
   const userId=document.getElementById('login-id').value.trim()
   const password=document.getElementById('login-pw').value
   if(!userId||!password){showAuthError('아이디와 비밀번호를 입력해주세요');return}
-  try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password})});const d=await r.json();if(!r.ok){showAuthError(d.error||'로그인 실패');return}saveAuth(d);startApp()}catch(e){showAuthError('서버 연결 실패')}
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password})})
+    const d=await r.json()
+    if(!r.ok){showAuthError(d.error||'로그인 실패');return}
+    saveAuth(d)
+    S.globalLocShare=localStorage.getItem('meetup_loc_share')!=='false'
+    setAuthState('authenticated')
+    startApp()
+  }catch(e){showAuthError('서버 연결 실패')}
 }
 async function doRegister(){
   const userId=document.getElementById('reg-id').value.trim()
@@ -1023,23 +1079,79 @@ async function doRegister(){
   const displayName=document.getElementById('reg-name').value.trim()
   const avatar=window._selAvatar||AVATARS[0]
   if(!userId||!password||!displayName){showAuthError('모든 항목을 입력해주세요');return}
-  try{const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password,displayName,avatar})});const d=await r.json();if(!r.ok){showAuthError(d.error||'회원가입 실패');return}saveAuth(d);startApp()}catch(e){showAuthError('서버 연결 실패')}
+  try{
+    const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,password,displayName,avatar})})
+    const d=await r.json()
+    if(!r.ok){showAuthError(d.error||'회원가입 실패');return}
+    saveAuth(d)
+    S.globalLocShare=true
+    setAuthState('authenticated')
+    startApp()
+  }catch(e){showAuthError('서버 연결 실패')}
 }
-function saveAuth(d){S.token=d.token;S.userId=d.userId;S.displayName=d.displayName;S.avatar=d.avatar;localStorage.setItem('meetup_auth',JSON.stringify({token:d.token,userId:d.userId,displayName:d.displayName,avatar:d.avatar}))}
+function saveAuth(d){
+  S.token=d.token; S.userId=d.userId; S.displayName=d.displayName; S.avatar=d.avatar
+  localStorage.setItem('meetup_auth',JSON.stringify({token:d.token,userId:d.userId,displayName:d.displayName,avatar:d.avatar}))
+}
+
+// 상태 완전 초기화 (로그아웃 / 세션 만료 공용)
+function resetState(){
+  clearInterval(S.pollTimer); clearInterval(S.locTimer)
+  S.pollTimer=null; S.locTimer=null
+  S.token=null; S.userId=null; S.displayName=null; S.avatar=null
+  S.lat=null; S.lng=null
+  S.friends=[]; S.pendingReqs=[]
+  S.rooms=[]; S.currentRoom=null; S.currentRoomName=''; S.currentRoomData=null
+  S.lastChatTs=0; S.lastSOSTs=0
+  S.unreadChat=0; S.roomUnread={}
+  S.activeSOS=null
+  S._friendsHash=''; S._roomsHash=''; S._reqHash=''
+  S.appointment=null; S.selectedPlace=null; S.midpointData=null
+  S.locPanelOpen=false
+  // 지도 마커 정리
+  if(S.myMarker){ try{S.myMarker.setMap(null)}catch(e){} ; S.myMarker=null }
+  Object.values(S.friendMarkers).forEach(m=>{try{m.setMap(null)}catch(e){}})
+  S.friendMarkers={}
+  if(S.aptMarker){ try{S.aptMarker.setMap(null)}catch(e){} ; S.aptMarker=null }
+}
+
 function doLogout(){
   if(!confirm('로그아웃 하시겠습니까?'))return
-  clearInterval(S.pollTimer);clearInterval(S.locTimer)
   if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>{if(r.active)r.active.postMessage({type:'LOGOUT'})}).catch(()=>{})
-  localStorage.removeItem('meetup_auth');location.reload()
+  localStorage.removeItem('meetup_auth')
+  resetState()
+  // 채팅 입력 비활성화
+  const ci=document.getElementById('chat-input');if(ci)ci.disabled=true
+  document.getElementById('chat-msgs').innerHTML='<div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div>'
+  document.getElementById('chat-room-select').innerHTML=''
+  document.getElementById('room-loc-btn').style.display='none'
+  renderAvatarGrid()
+  setAuthState('unauthenticated')
 }
-function api(path,opts={}){return fetch(path,{...opts,headers:{'Authorization':'Bearer '+S.token,'Content-Type':'application/json',...(opts.headers||{})}})}
+
+// api() : S.token이 없으면 요청을 보내지 않고 바로 401 유사 응답 반환
+function api(path,opts={}){
+  if(!S.token) return Promise.resolve(new Response(JSON.stringify({success:false,error:'Unauthorized'}),{status:401,headers:{'Content-Type':'application/json'}}))
+  return fetch(path,{...opts,headers:{'Authorization':'Bearer '+S.token,'Content-Type':'application/json',...(opts.headers||{})}})
+    .then(r=>{
+      // 401 수신 시 세션 만료 처리
+      if(r.status===401 && S.token){
+        console.warn('[meetup] 세션 만료 — 로그인 화면으로 이동')
+        localStorage.removeItem('meetup_auth')
+        resetState()
+        renderAvatarGrid()
+        setAuthState('unauthenticated')
+        showToast('로그인이 만료되었습니다. 다시 로그인해주세요.','error')
+      }
+      return r
+    })
+}
 
 // ════════════════════════════════════════════════════════
 //  앱 시작 & 폴링 (성능 최적화)
 // ════════════════════════════════════════════════════════
 function startApp(){
-  document.getElementById('screen-auth').style.display='none'
-  document.getElementById('screen-main').classList.add('visible')
+  // 화면 전환은 setAuthState('authenticated')에서 처리 — 중복 호출 방지
   document.getElementById('my-avatar-btn').textContent=S.avatar||'🐻'
   document.getElementById('profile-avatar').textContent=S.avatar||'🐻'
   document.getElementById('profile-name').textContent=S.displayName
