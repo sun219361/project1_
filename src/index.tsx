@@ -445,7 +445,10 @@ const HTML = `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <title>모여봐</title>
 <link rel="manifest" href="/manifest.json"/>
 <meta name="theme-color" content="#7c3aed"/>
@@ -463,13 +466,18 @@ const HTML = `<!DOCTYPE html>
   --radius:16px;--radius-sm:10px;--radius-xs:8px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
-html,body{height:100%;overflow:hidden;background:var(--bg)}
-body{font-family:'Pretendard',sans-serif;color:var(--text)}
+html{height:100%;height:-webkit-fill-available;overflow:hidden}
+body{height:100%;height:100dvh;overflow:hidden;background:var(--bg);font-family:'Pretendard',sans-serif;color:var(--text);position:fixed;width:100%;}
 input,textarea,button{font-family:inherit}
 input{font-size:16px!important}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:4px}
+/* 키보드 팝업 시 레이아웃 고정 (iOS/Android 모두) */
+@supports(height:100dvh){
+  html,body{height:100dvh}
+  #screen-auth,#screen-main{height:100dvh}
+}
 
 /* ── AUTH ──────────────────────────────── */
 #screen-auth{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto;}
@@ -496,7 +504,7 @@ input{font-size:16px!important}
 /* ── MAIN APP ─────────────────────────── */
 #screen-main{position:fixed;inset:0;display:none;flex-direction:column;background:var(--bg);}
 #screen-main.visible{display:flex}
-.topbar{flex-shrink:0;padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-bottom:1px solid var(--border);z-index:10;}
+.topbar{flex-shrink:0;padding:max(env(safe-area-inset-top,0px),14px) 16px 10px;display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-bottom:1px solid var(--border);z-index:10;}
 .topbar-logo{display:flex;align-items:center;gap:8px}
 .topbar-logo-icon{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--pink));display:flex;align-items:center;justify-content:center;font-size:14px;}
 .topbar-logo-text{font-size:18px;font-weight:800;letter-spacing:-0.5px}
@@ -504,11 +512,12 @@ input{font-size:16px!important}
 .icon-btn{width:36px;height:36px;border-radius:10px;border:none;background:var(--surface);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;transition:all .15s;position:relative;}
 .icon-btn:active{background:var(--surface2)}
 .icon-btn .badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;padding:0 3px;background:var(--red);font-size:9px;font-weight:700;color:white;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);}
-.tab-content{flex:1;overflow:hidden;position:relative}
-.tab-pane{position:absolute;inset:0;overflow:hidden;display:none;flex-direction:column}
+.tab-content{flex:1;overflow:hidden;position:relative;min-height:0}
+.tab-pane{position:absolute;inset:0;overflow:hidden;display:none;flex-direction:column;contain:layout size}
 .tab-pane.active{display:flex}
-.tabbar{flex-shrink:0;display:grid;grid-template-columns:repeat(4,1fr);background:var(--bg);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0);}
-.tab-btn{padding:10px 0 8px;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text3);cursor:pointer;transition:color .2s;position:relative;}
+.tabbar{flex-shrink:0;display:grid;grid-template-columns:repeat(4,1fr);background:var(--bg);border-top:1px solid var(--border);padding-bottom:max(env(safe-area-inset-bottom,0px),4px);}
+/* tabbar 최소 높이 보장 */
+.tab-btn{min-height:52px;padding:8px 0 6px;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text3);cursor:pointer;transition:color .2s;position:relative;}
 .tab-btn i{font-size:20px;transition:transform .2s}
 .tab-btn span{font-size:10px;font-weight:600;letter-spacing:0.3px}
 .tab-btn.active{color:var(--accent2)}
@@ -596,13 +605,16 @@ input{font-size:16px!important}
 .msg-time{font-size:10px;color:var(--text3);padding:0 4px;flex-shrink:0}
 .msg-system{text-align:center;font-size:11px;color:var(--text3);padding:3px 0}
 .msg-sos .msg-bubble{background:rgba(239,68,68,0.15)!important;border:1px solid rgba(239,68,68,0.4)!important;color:#fca5a5!important;border-radius:12px!important;}
-.chat-input-bar{flex-shrink:0;padding:10px 12px;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;}
-.chat-input-bar input{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:10px 16px;color:var(--text);outline:none;font-size:14px;transition:border-color .2s;}
+.chat-input-bar{flex-shrink:0;padding:10px 12px 10px;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;min-height:64px;}
+.chat-input-bar input{flex:1;background:var(--surface);border:1.5px solid var(--border2);border-radius:22px;padding:11px 16px;color:var(--text);outline:none;font-size:16px;transition:border-color .2s;min-height:44px;}
 .chat-input-bar input:focus{border-color:var(--accent)}
 .chat-input-bar input::placeholder{color:var(--text3)}
-.send-btn{width:40px;height:40px;border-radius:50%;border:none;background:var(--accent);color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
-.send-btn:active{transform:scale(0.92)}
-.loc-share-btn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface);color:var(--accent3);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+.send-btn{width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;box-shadow:0 4px 12px rgba(124,58,237,0.4);}
+.send-btn:hover{transform:scale(1.05);box-shadow:0 6px 16px rgba(124,58,237,0.5);}
+.send-btn:active{transform:scale(0.90);box-shadow:0 2px 8px rgba(124,58,237,0.3);}
+.send-btn:disabled{background:var(--surface2);box-shadow:none;color:var(--text3);cursor:default;transform:none;}
+.loc-share-btn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border2);background:var(--surface);color:var(--accent3);font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.loc-share-btn:active{transform:scale(0.92);background:var(--surface2);}
 
 /* ── 채팅방 위치 패널 (바텀시트) ──── */
 .room-loc-panel{position:absolute;bottom:0;left:0;right:0;z-index:40;background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border2);transform:translateY(100%);transition:transform .3s cubic-bezier(0.34,1.56,0.64,1);max-height:55%;}
@@ -852,8 +864,8 @@ input{font-size:16px!important}
       <div class="chat-msgs" id="chat-msgs"><div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div></div>
       <div class="chat-input-bar">
         <button class="loc-share-btn" onclick="shareMyLocInChat()" title="내 위치 공유"><i class="fas fa-map-marker-alt"></i></button>
-        <input id="chat-input" type="text" placeholder="메시지 입력..." maxlength="200" disabled/>
-        <button class="send-btn" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+        <input id="chat-input" type="text" placeholder="메시지를 입력하세요" maxlength="200" disabled autocomplete="off" autocorrect="off" spellcheck="false"/>
+        <button class="send-btn" id="send-btn" onclick="sendChat()" disabled title="보내기"><i class="fas fa-paper-plane"></i></button>
       </div>
       <!-- 채팅방 위치 공유 바텀시트 패널 -->
       <div class="room-loc-panel" id="room-loc-panel">
@@ -1120,8 +1132,9 @@ function doLogout(){
   if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>{if(r.active)r.active.postMessage({type:'LOGOUT'})}).catch(()=>{})
   localStorage.removeItem('meetup_auth')
   resetState()
-  // 채팅 입력 비활성화
-  const ci=document.getElementById('chat-input');if(ci)ci.disabled=true
+  // 채팅 입력/전송 버튼 비활성화
+  const ci=document.getElementById('chat-input');if(ci){ci.disabled=true;ci.value=''}
+  const sb=document.getElementById('send-btn');if(sb)sb.disabled=true
   document.getElementById('chat-msgs').innerHTML='<div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div>'
   document.getElementById('chat-room-select').innerHTML=''
   document.getElementById('room-loc-btn').style.display='none'
@@ -1359,8 +1372,11 @@ function selectRoom(roomId,roomName){
   document.querySelectorAll('.room-chip').forEach(c=>c.classList.toggle('active',c.dataset.room===roomId))
   document.getElementById('chat-room-name').textContent=S.currentRoomName
   document.getElementById('chat-msgs').innerHTML=''
-  document.getElementById('chat-input').disabled=false
-  document.getElementById('chat-input').placeholder='메시지 입력...'
+  const ci=document.getElementById('chat-input')
+  ci.disabled=false
+  ci.placeholder='메시지를 입력하세요'
+  ci.value=''
+  document.getElementById('send-btn').disabled=true
   updateRoomLocBtn()
   fetchChat()
   closeRoomLocPanel()
@@ -1462,7 +1478,7 @@ async function leaveRoom(roomId){
     await api('/api/rooms/'+roomId+'/leave',{method:'POST'})
     S.rooms=S.rooms.filter(r=>r.roomId!==roomId);S._roomsHash=''
     renderChatRooms()
-    if(S.currentRoom===roomId){S.currentRoom=null;S.currentRoomData=null;document.getElementById('chat-room-name').textContent='채팅방을 선택하세요';document.getElementById('chat-msgs').innerHTML='<div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div>';document.getElementById('chat-input').disabled=true;document.getElementById('room-loc-btn').style.display='none';closeRoomLocPanel()}
+    if(S.currentRoom===roomId){S.currentRoom=null;S.currentRoomData=null;document.getElementById('chat-room-name').textContent='채팅방을 선택하세요';document.getElementById('chat-msgs').innerHTML='<div class="empty-state" style="margin:auto"><div class="e-icon">💬</div><p>채팅방을 선택하거나<br/>새로 만들어보세요</p></div>';document.getElementById('chat-input').disabled=true;document.getElementById('send-btn').disabled=true;document.getElementById('room-loc-btn').style.display='none';closeRoomLocPanel()}
     showToast('채팅방 나가기 완료','info')
   }catch(e){showToast('실패','error')}
 }
@@ -1525,9 +1541,13 @@ function buildMsgEl(m){
 
 async function sendChat(){
   const input=document.getElementById('chat-input')
+  const btn=document.getElementById('send-btn')
   const msg=input.value.trim();if(!msg||!S.currentRoom)return
   input.value=''
+  if(btn)btn.disabled=true
   try{await api('/api/chat',{method:'POST',body:JSON.stringify({roomId:S.currentRoom,message:msg})});fetchChat()}catch(e){showToast('전송 실패','error')}
+  // 입력창 포커스 유지
+  input.focus()
 }
 async function shareMyLocInChat(){
   if(!S.lat){showToast('위치를 가져오는 중...','info');return}
@@ -1695,7 +1715,17 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 //  DOM Ready
 // ════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}})
+  // 채팅 입력: Enter키 전송 제거, 버튼으로만 전송
+  const chatInput=document.getElementById('chat-input')
+  const sendBtn=document.getElementById('send-btn')
+  chatInput.addEventListener('input',()=>{
+    const hasText=chatInput.value.trim().length>0&&!chatInput.disabled
+    sendBtn.disabled=!hasText
+  })
+  // Enter키는 줄바꿈 없이 무시 (모바일 키보드 '완료' 버튼 방지)
+  chatInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault()} // 전송 안 함
+  })
   document.getElementById('place-input').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlace()})
   document.getElementById('friend-id-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendFriendReq()})
   document.getElementById('chat-room-select').addEventListener('click',e=>{
