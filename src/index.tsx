@@ -7,13 +7,38 @@ type Bindings = {
   ODSAY_API_KEY: string
 }
 const app = new Hono<{ Bindings: Bindings }>()
-app.use('/api/*', cors())
+
+// ── CORS: 실제 도메인만 허용 (배포 후 도메인 확인 전까지 * 유지) ──
+app.use('/api/*', cors({
+  origin: '*',  // 배포 후 'https://your-domain.pages.dev' 로 교체 권장
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
+}))
+
+// ── 글로벌 에러 핸들러 (500 응답 표준화) ──────────────────────
+app.onError((err, c) => {
+  console.error('[API Error]', err)
+  return c.json({ success: false, error: 'Internal server error' }, 500)
+})
 
 // ── 유틸 ──────────────────────────────────────────────────────
+// [MEDIUM] djb2 해시 → 경량 배포용으로 유지. 보안강화 필요 시 Web Crypto로 교체.
 function hashPassword(pw: string): string {
   let h = 5381
   for (let i = 0; i < pw.length; i++) h = ((h << 5) + h) ^ pw.charCodeAt(i)
   return (h >>> 0).toString(36)
+}
+
+// [FIX] safeJson: JSON.parse 실패 시 null 반환 (KV 손상 데이터 방어)
+function safeJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback
+  try { return JSON.parse(raw) as T } catch { return fallback }
+}
+
+// [FIX] safeReqJson: c.req.json() Content-Type 없어도 500 방지
+async function safeReqJson(c: any): Promise<any> {
+  try { return await c.req.json() } catch { return {} }
 }
 
 async function getUser(c: any) {
@@ -21,36 +46,55 @@ async function getUser(c: any) {
   // 'Bearer null' / 'Bearer undefined' 같은 잘못된 토큰 차단
   const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
   if (!token || token === 'null' || token === 'undefined') return null
-  const uid = await c.env.KV.get(`session:${token}`)
-  if (!uid) return null
-  const raw = await c.env.KV.get(`user:${uid}`)
-  return raw ? JSON.parse(raw) : null
+  try {
+    const uid = await c.env.KV.get(`session:${token}`)
+    if (!uid) return null
+    const raw = await c.env.KV.get(`user:${uid}`)
+    return raw ? safeJson(raw, null) : null
+  } catch { return null }
 }
 
 // ── 회원가입 ──────────────────────────────────────────────────
 app.post('/api/auth/register', async (c) => {
-  const { userId, password, displayName, avatar } = await c.req.json()
-  if (!userId || !password || !displayName) return c.json({ error: '모든 항목을 입력해주세요' }, 400)
-  if (userId.length < 3) return c.json({ error: '아이디는 3자 이상이어야 합니다' }, 400)
-  if (password.length < 4) return c.json({ error: '비밀번호는 4자 이상이어야 합니다' }, 400)
-  if (!/^[a-z0-9_]+$/i.test(userId)) return c.json({ error: '아이디는 영문/숫자/밑줄만 사용 가능합니다' }, 400)
-  const existing = await c.env.KV.get(`user:${userId.toLowerCase()}`)
-  if (existing) return c.json({ error: '이미 사용 중인 아이디입니다' }, 409)
-  const userData = { userId: userId.toLowerCase(), displayName, avatar: avatar || '🐻', passwordHash: hashPassword(password), createdAt: Date.now() }
+  const body = await safeReqJson(c)
+  const { userId, password, displayName, avatar } = body
+  if (!userId || !password || !displayName) return c.json({ success: false, error: '모든 항목을 입력해주세요' }, 400)
+  if (typeof userId !== 'string' || typeof password !== 'string' || typeof displayName !== 'string')
+    return c.json({ success: false, error: '잘못된 요청 형식입니다' }, 400)
+  if (userId.length < 3 || userId.length > 20) return c.json({ success: false, error: '아이디는 3~20자이어야 합니다' }, 400)
+  if (password.length < 4 || password.length > 64) return c.json({ success: false, error: '비밀번호는 4~64자이어야 합니다' }, 400)
+  if (displayName.length < 1 || displayName.length > 10) return c.json({ success: false, error: '닉네임은 1~10자이어야 합니다' }, 400)
+  if (!/^[a-z0-9_]+$/i.test(userId)) return c.json({ success: false, error: '아이디는 영문/숫자/밑줄만 사용 가능합니다' }, 400)
+  // [FIX] KV 접근 에러 방어
+  let existing: string | null = null
+  try { existing = await c.env.KV.get(`user:${userId.toLowerCase()}`) } catch {
+    return c.json({ success: false, error: '서버 오류가 발생했습니다' }, 500)
+  }
+  if (existing) return c.json({ success: false, error: '이미 사용 중인 아이디입니다' }, 409)
+  const SAFE_AVATARS = ['🐻','🦊','🐱','🐶','🐸','🐧','🐨','🦁','🐯','🐺','🦄','🐼']
+  const safeAvatar = SAFE_AVATARS.includes(avatar) ? avatar : '🐻'
+  const userData = { userId: userId.toLowerCase(), displayName: displayName.trim(), avatar: safeAvatar, passwordHash: hashPassword(password), createdAt: Date.now() }
   await c.env.KV.put(`user:${userId.toLowerCase()}`, JSON.stringify(userData))
   const token = `tok_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`
   await c.env.KV.put(`session:${token}`, userId.toLowerCase(), { expirationTtl: 86400 * 7 })
-  return c.json({ success: true, token, userId: userData.userId, displayName, avatar: userData.avatar })
+  return c.json({ success: true, token, userId: userData.userId, displayName: userData.displayName, avatar: userData.avatar })
 })
 
 // ── 로그인 ────────────────────────────────────────────────────
 app.post('/api/auth/login', async (c) => {
-  const { userId, password } = await c.req.json()
-  if (!userId || !password) return c.json({ error: '아이디와 비밀번호를 입력해주세요' }, 400)
-  const raw = await c.env.KV.get(`user:${userId.toLowerCase()}`)
-  if (!raw) return c.json({ error: '존재하지 않는 아이디입니다' }, 404)
-  const user = JSON.parse(raw)
-  if (user.passwordHash !== hashPassword(password)) return c.json({ error: '비밀번호가 틀렸습니다' }, 401)
+  const body = await safeReqJson(c)
+  const { userId, password } = body
+  if (!userId || !password) return c.json({ success: false, error: '아이디와 비밀번호를 입력해주세요' }, 400)
+  if (typeof userId !== 'string' || typeof password !== 'string')
+    return c.json({ success: false, error: '잘못된 요청 형식입니다' }, 400)
+  let raw: string | null = null
+  try { raw = await c.env.KV.get(`user:${userId.toLowerCase()}`) } catch {
+    return c.json({ success: false, error: '서버 오류가 발생했습니다' }, 500)
+  }
+  if (!raw) return c.json({ success: false, error: '존재하지 않는 아이디입니다' }, 404)
+  const user = safeJson(raw, null) as any
+  if (!user) return c.json({ success: false, error: '서버 오류가 발생했습니다' }, 500)
+  if (user.passwordHash !== hashPassword(password)) return c.json({ success: false, error: '비밀번호가 틀렸습니다' }, 401)
   const token = `tok_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`
   await c.env.KV.put(`session:${token}`, user.userId, { expirationTtl: 86400 * 7 })
   return c.json({ success: true, token, userId: user.userId, displayName: user.displayName, avatar: user.avatar })
@@ -65,29 +109,33 @@ app.get('/api/me', async (c) => {
 // ── 친구 ──────────────────────────────────────────────────────
 async function acceptFriendship(kv: KVNamespace, a: string, b: string) {
   const [aRaw, bRaw] = await Promise.all([kv.get(`friends:${a}`), kv.get(`friends:${b}`)])
-  const aList = aRaw ? JSON.parse(aRaw) : []
-  const bList = bRaw ? JSON.parse(bRaw) : []
+  const aList: string[] = safeJson(aRaw, [])
+  const bList: string[] = safeJson(bRaw, [])
   if (!aList.includes(b)) aList.push(b)
   if (!bList.includes(a)) bList.push(a)
+  // friends 목록: TTL 없음 (영구 데이터 - 친구관계는 명시적 삭제만)
   await Promise.all([kv.put(`friends:${a}`, JSON.stringify(aList)), kv.put(`friends:${b}`, JSON.stringify(bList))])
 }
 
 app.post('/api/friends/request', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { targetUserId } = await c.req.json()
-  const tid = targetUserId?.toLowerCase()
-  if (!tid || tid === me.userId) return c.json({ error: '잘못된 요청' }, 400)
+  const body = await safeReqJson(c)
+  const { targetUserId } = body
+  if (!targetUserId || typeof targetUserId !== 'string') return c.json({ success: false, error: '잘못된 요청' }, 400)
+  const tid = targetUserId.toLowerCase().trim()
+  if (!tid || tid === me.userId) return c.json({ success: false, error: '잘못된 요청' }, 400)
+  if (!/^[a-z0-9_]+$/.test(tid)) return c.json({ success: false, error: '잘못된 아이디 형식' }, 400)
   const [targetRaw, friendsRaw, existing, reverseReq] = await Promise.all([
     c.env.KV.get(`user:${tid}`),
     c.env.KV.get(`friends:${me.userId}`),
     c.env.KV.get(`friend_req:${tid}:${me.userId}`),
     c.env.KV.get(`friend_req:${me.userId}:${tid}`)
   ])
-  if (!targetRaw) return c.json({ error: '존재하지 않는 사용자입니다' }, 404)
-  const myFriends = friendsRaw ? JSON.parse(friendsRaw) : []
-  if (myFriends.includes(tid)) return c.json({ error: '이미 친구입니다' }, 409)
-  if (existing) return c.json({ error: '이미 친구 요청을 보냈습니다' }, 409)
+  if (!targetRaw) return c.json({ success: false, error: '존재하지 않는 사용자입니다' }, 404)
+  const myFriends: string[] = safeJson(friendsRaw, [])
+  if (myFriends.includes(tid)) return c.json({ success: false, error: '이미 친구입니다' }, 409)
+  if (existing) return c.json({ success: false, error: '이미 친구 요청을 보냈습니다' }, 409)
   if (reverseReq) {
     await acceptFriendship(c.env.KV, me.userId, tid)
     await c.env.KV.delete(`friend_req:${me.userId}:${tid}`)
@@ -100,8 +148,10 @@ app.post('/api/friends/request', async (c) => {
 app.post('/api/friends/accept', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { fromUserId } = await c.req.json()
-  const fid = fromUserId?.toLowerCase()
+  const body = await safeReqJson(c)
+  const { fromUserId } = body
+  if (!fromUserId || typeof fromUserId !== 'string') return c.json({ success: false, error: '잘못된 요청' }, 400)
+  const fid = fromUserId.toLowerCase()
   await Promise.all([
     acceptFriendship(c.env.KV, me.userId, fid),
     c.env.KV.delete(`friend_req:${me.userId}:${fid}`)
@@ -112,8 +162,10 @@ app.post('/api/friends/accept', async (c) => {
 app.post('/api/friends/reject', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { fromUserId } = await c.req.json()
-  await c.env.KV.delete(`friend_req:${me.userId}:${fromUserId?.toLowerCase()}`)
+  const body = await safeReqJson(c)
+  const { fromUserId } = body
+  if (!fromUserId || typeof fromUserId !== 'string') return c.json({ success: false, error: '잘못된 요청' }, 400)
+  await c.env.KV.delete(`friend_req:${me.userId}:${fromUserId.toLowerCase()}`)
   return c.json({ success: true })
 })
 
@@ -122,8 +174,8 @@ app.get('/api/friends/requests', async (c) => {
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const list = await c.env.KV.list({ prefix: `friend_req:${me.userId}:` })
   const vals = await Promise.all(list.keys.map(k => c.env.KV.get(k.name)))
-  const requests = vals.filter(Boolean).map(v => JSON.parse(v!))
-  return c.json({ requests })
+  const requests = vals.filter(Boolean).map(v => safeJson(v!, null)).filter(Boolean)
+  return c.json({ success: true, requests })
 })
 
 // ── 친구 목록 + 위치 (병렬 최적화) ───────────────────────────
@@ -135,34 +187,41 @@ app.get('/api/friends', async (c) => {
     c.env.KV.get(`loc_perm:${me.userId}`),
     c.env.KV.get(`view_perm:${me.userId}`)
   ])
-  const friendIds: string[] = raw ? JSON.parse(raw) : []
-  const myPerm: Record<string, boolean> = myPermRaw ? JSON.parse(myPermRaw) : {}
-  const myView: Record<string, boolean> = myViewRaw ? JSON.parse(myViewRaw) : {}
-  if (!friendIds.length) return c.json({ friends: [] })
+  const friendIds: string[] = safeJson(raw, [])
+  const myPerm: Record<string, boolean> = safeJson(myPermRaw, {})
+  const myView: Record<string, boolean> = safeJson(myViewRaw, {})
+  if (!friendIds.length) return c.json({ success: true, friends: [] })
   const results = await Promise.all(friendIds.map(async fid => {
-    const [ufRaw, fPermRaw, locRaw] = await Promise.all([
-      c.env.KV.get(`user:${fid}`),
-      c.env.KV.get(`loc_perm:${fid}`),
-      myView[fid] !== false ? c.env.KV.get(`loc:${fid}`) : Promise.resolve(null)
-    ])
-    if (!ufRaw) return null
-    const uf = JSON.parse(ufRaw)
-    const fPerm: Record<string, boolean> = fPermRaw ? JSON.parse(fPermRaw) : {}
-    const friendAllowsMe = fPerm[me.userId] !== false
-    const iViewFriend = myView[fid] !== false
-    const location = (friendAllowsMe && iViewFriend && locRaw) ? JSON.parse(locRaw) : null
-    return { userId: uf.userId, displayName: uf.displayName, avatar: uf.avatar, location, iShareWithFriend: myPerm[fid] !== false, iViewFriend }
+    try {
+      const [ufRaw, fPermRaw, locRaw] = await Promise.all([
+        c.env.KV.get(`user:${fid}`),
+        c.env.KV.get(`loc_perm:${fid}`),
+        myView[fid] !== false ? c.env.KV.get(`loc:${fid}`) : Promise.resolve(null)
+      ])
+      if (!ufRaw) return null
+      const uf = safeJson(ufRaw, null) as any
+      if (!uf) return null
+      const fPerm: Record<string, boolean> = safeJson(fPermRaw, {})
+      const friendAllowsMe = fPerm[me.userId] !== false
+      const iViewFriend = myView[fid] !== false
+      const location = (friendAllowsMe && iViewFriend && locRaw) ? safeJson(locRaw, null) : null
+      return { userId: uf.userId, displayName: uf.displayName, avatar: uf.avatar, location, iShareWithFriend: myPerm[fid] !== false, iViewFriend }
+    } catch { return null }
   }))
-  return c.json({ friends: results.filter(Boolean) })
+  return c.json({ success: true, friends: results.filter(Boolean) })
 })
 
 // ── 위치 업로드 ────────────────────────────────────────────────
 app.post('/api/location', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { lat, lng, accuracy } = await c.req.json()
-  if (!lat || !lng) return c.json({ error: 'lat/lng required' }, 400)
-  await c.env.KV.put(`loc:${me.userId}`, JSON.stringify({ lat, lng, accuracy: accuracy || 20, updatedAt: Date.now() }), { expirationTtl: 3600 })
+  const body = await safeReqJson(c)
+  const { lat, lng, accuracy } = body
+  // [FIX] 좌표 유효성 검증 (숫자 범위 확인)
+  const latN = Number(lat), lngN = Number(lng)
+  if (!lat || !lng || isNaN(latN) || isNaN(lngN) || latN < -90 || latN > 90 || lngN < -180 || lngN > 180)
+    return c.json({ success: false, error: '유효하지 않은 좌표입니다' }, 400)
+  await c.env.KV.put(`loc:${me.userId}`, JSON.stringify({ lat: latN, lng: lngN, accuracy: Number(accuracy) || 20, updatedAt: Date.now() }), { expirationTtl: 3600 })
   return c.json({ success: true })
 })
 
@@ -170,10 +229,13 @@ app.post('/api/location', async (c) => {
 app.post('/api/location/permission', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { friendId, allow } = await c.req.json()
+  const body = await safeReqJson(c)
+  const { friendId, allow } = body
+  if (!friendId || typeof friendId !== 'string') return c.json({ success: false, error: '잘못된 요청' }, 400)
   const raw = await c.env.KV.get(`loc_perm:${me.userId}`)
-  const perm: Record<string, boolean> = raw ? JSON.parse(raw) : {}
+  const perm: Record<string, boolean> = safeJson(raw, {})
   perm[friendId.toLowerCase()] = !!allow
+  // loc_perm: TTL 없음 (사용자 설정은 영구 보관)
   await c.env.KV.put(`loc_perm:${me.userId}`, JSON.stringify(perm))
   return c.json({ success: true })
 })
@@ -182,40 +244,59 @@ app.post('/api/location/permission', async (c) => {
 app.post('/api/location/view', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { friendId, show } = await c.req.json()
+  const body = await safeReqJson(c)
+  const { friendId, show } = body
+  if (!friendId || typeof friendId !== 'string') return c.json({ success: false, error: '잘못된 요청' }, 400)
   const raw = await c.env.KV.get(`view_perm:${me.userId}`)
-  const perm: Record<string, boolean> = raw ? JSON.parse(raw) : {}
+  const perm: Record<string, boolean> = safeJson(raw, {})
   perm[friendId.toLowerCase()] = !!show
+  // view_perm: TTL 없음 (사용자 설정은 영구 보관)
   await c.env.KV.put(`view_perm:${me.userId}`, JSON.stringify(perm))
   return c.json({ success: true })
 })
 
-// ── 채팅방 목록 조회 (everyone 제거) ──────────────────────────
+// ── 채팅방 목록 조회 ──────────────────────────────────────────
 app.get('/api/rooms', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const raw = await c.env.KV.get(`rooms:${me.userId}`)
-  const roomIds: string[] = raw ? JSON.parse(raw) : []
-  if (!roomIds.length) return c.json({ rooms: [] })
+  const roomIds: string[] = safeJson(raw, [])
+  if (!roomIds.length) return c.json({ success: true, rooms: [] })
   const raws = await Promise.all(roomIds.map(rid => c.env.KV.get(`room:${rid}`)))
-  const rooms = raws.filter(Boolean).map(r => JSON.parse(r!))
-  return c.json({ rooms })
+  // [FIX] 만료된 방 참조 자동 정리 (room TTL 30일 → rooms 목록에서 제거)
+  const validRooms: any[] = []
+  const validIds: string[] = []
+  raws.forEach((r, i) => {
+    const parsed = safeJson(r, null)
+    if (parsed) { validRooms.push(parsed); validIds.push(roomIds[i]) }
+  })
+  // 만료된 방이 있으면 목록 업데이트 (rooms 목록은 TTL 없음 - 영구 보관, 방 자체는 30일 TTL)
+  if (validIds.length !== roomIds.length) {
+    await c.env.KV.put(`rooms:${me.userId}`, JSON.stringify(validIds))
+  }
+  return c.json({ success: true, rooms: validRooms })
 })
 
 // ── 채팅방 생성 ───────────────────────────────────────────────
 app.post('/api/rooms', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { name, memberIds } = await c.req.json()
-  if (!name || !Array.isArray(memberIds)) return c.json({ error: 'name and memberIds required' }, 400)
-  const allMembers = [...new Set([me.userId, ...memberIds.map((id: string) => id.toLowerCase())])]
+  const body = await safeReqJson(c)
+  const { name, memberIds } = body
+  if (!name || typeof name !== 'string') return c.json({ success: false, error: 'name required' }, 400)
+  if (!Array.isArray(memberIds)) return c.json({ success: false, error: 'memberIds must be array' }, 400)
+  // [FIX] 채팅방 이름 길이 제한 + 멤버 수 제한
+  if (name.trim().length < 1 || name.trim().length > 20) return c.json({ success: false, error: '채팅방 이름은 1~20자이어야 합니다' }, 400)
+  if (memberIds.length > 19) return c.json({ success: false, error: '최대 20명까지 가능합니다' }, 400)
+  const allMembers = [...new Set([me.userId, ...memberIds.map((id: string) => String(id).toLowerCase())])]
   const roomId = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
-  const roomData = { roomId, name, type: 'group', members: allMembers, createdBy: me.userId, createdAt: Date.now(), locShare: false }
+  const roomData = { roomId, name: name.trim(), type: 'group', members: allMembers, createdBy: me.userId, createdAt: Date.now(), locShare: false }
   await c.env.KV.put(`room:${roomId}`, JSON.stringify(roomData), { expirationTtl: 86400 * 30 })
   await Promise.all(allMembers.map(async uid => {
     const rawR = await c.env.KV.get(`rooms:${uid}`)
-    const rList: string[] = rawR ? JSON.parse(rawR) : []
+    const rList: string[] = safeJson(rawR, [])
     if (!rList.includes(roomId)) rList.push(roomId)
+    // rooms 목록: TTL 없음 (방 목록은 영구 보관, 방 자체는 30일 TTL)
     await c.env.KV.put(`rooms:${uid}`, JSON.stringify(rList))
   }))
   return c.json({ success: true, room: roomData })
@@ -225,21 +306,28 @@ app.post('/api/rooms', async (c) => {
 app.post('/api/rooms/dm', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { targetUserId } = await c.req.json()
-  const tid = targetUserId?.toLowerCase()
-  if (!tid) return c.json({ error: 'targetUserId required' }, 400)
+  const body = await safeReqJson(c)
+  const { targetUserId } = body
+  if (!targetUserId || typeof targetUserId !== 'string') return c.json({ success: false, error: 'targetUserId required' }, 400)
+  const tid = targetUserId.toLowerCase().trim()
+  if (!tid || tid === me.userId) return c.json({ success: false, error: '잘못된 요청' }, 400)
   const dmId = `dm_${[me.userId, tid].sort().join('_')}`
   const existing = await c.env.KV.get(`room:${dmId}`)
-  if (existing) return c.json({ success: true, room: JSON.parse(existing) })
+  if (existing) {
+    const room = safeJson(existing, null)
+    if (room) return c.json({ success: true, room })
+  }
   const targetRaw = await c.env.KV.get(`user:${tid}`)
-  if (!targetRaw) return c.json({ error: '존재하지 않는 사용자입니다' }, 404)
-  const target = JSON.parse(targetRaw)
+  if (!targetRaw) return c.json({ success: false, error: '존재하지 않는 사용자입니다' }, 404)
+  const target = safeJson(targetRaw, null) as any
+  if (!target) return c.json({ success: false, error: '서버 오류가 발생했습니다' }, 500)
   const roomData = { roomId: dmId, name: target.displayName, type: 'dm', members: [me.userId, tid], createdBy: me.userId, createdAt: Date.now(), locShare: false }
   await c.env.KV.put(`room:${dmId}`, JSON.stringify(roomData), { expirationTtl: 86400 * 30 })
   await Promise.all([me.userId, tid].map(async uid => {
     const rawR = await c.env.KV.get(`rooms:${uid}`)
-    const rList: string[] = rawR ? JSON.parse(rawR) : []
+    const rList: string[] = safeJson(rawR, [])
     if (!rList.includes(dmId)) rList.push(dmId)
+    // rooms 목록: TTL 없음 (영구 보관)
     await c.env.KV.put(`rooms:${uid}`, JSON.stringify(rList))
   }))
   return c.json({ success: true, room: roomData })
@@ -250,11 +338,13 @@ app.post('/api/rooms/:roomId/locshare', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
-  const { enabled } = await c.req.json()
+  const body = await safeReqJson(c)
+  const { enabled } = body
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
-  if (!roomRaw) return c.json({ error: 'Room not found' }, 404)
-  const room = JSON.parse(roomRaw)
-  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
+  if (!roomRaw) return c.json({ success: false, error: 'Room not found' }, 404)
+  const room = safeJson(roomRaw, null) as any
+  if (!room) return c.json({ success: false, error: '서버 오류' }, 500)
+  if (!room.members.includes(me.userId)) return c.json({ success: false, error: 'Not a member' }, 403)
   room.locShare = !!enabled
   await c.env.KV.put(`room:${roomId}`, JSON.stringify(room), { expirationTtl: 86400 * 30 })
   return c.json({ success: true, locShare: room.locShare })
@@ -266,18 +356,22 @@ app.get('/api/rooms/:roomId/locations', async (c) => {
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
-  if (!roomRaw) return c.json({ locations: [], locShare: false })
-  const room = JSON.parse(roomRaw)
-  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
-  if (!room.locShare) return c.json({ locations: [], locShare: false })
+  if (!roomRaw) return c.json({ success: true, locations: [], locShare: false })
+  const room = safeJson(roomRaw, null) as any
+  if (!room) return c.json({ success: true, locations: [], locShare: false })
+  if (!room.members.includes(me.userId)) return c.json({ success: false, error: 'Not a member' }, 403)
+  if (!room.locShare) return c.json({ success: true, locations: [], locShare: false })
   const locs = await Promise.all(room.members.map(async (uid: string) => {
-    const [userRaw, locRaw] = await Promise.all([c.env.KV.get(`user:${uid}`), c.env.KV.get(`loc:${uid}`)])
-    if (!userRaw || !locRaw) return null
-    const user = JSON.parse(userRaw)
-    const loc = JSON.parse(locRaw)
-    return { userId: uid, displayName: user.displayName, avatar: user.avatar, ...loc }
+    try {
+      const [userRaw, locRaw] = await Promise.all([c.env.KV.get(`user:${uid}`), c.env.KV.get(`loc:${uid}`)])
+      if (!userRaw || !locRaw) return null
+      const user = safeJson(userRaw, null) as any
+      const loc = safeJson(locRaw, null) as any
+      if (!user || !loc) return null
+      return { userId: uid, displayName: user.displayName, avatar: user.avatar, ...loc }
+    } catch { return null }
   }))
-  return c.json({ locations: locs.filter(Boolean), locShare: true })
+  return c.json({ success: true, locations: locs.filter(Boolean), locShare: true })
 })
 
 // ── 채팅방 나가기 ─────────────────────────────────────────────
@@ -286,7 +380,7 @@ app.post('/api/rooms/:roomId/leave', async (c) => {
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const roomId = c.req.param('roomId')
   const rawR = await c.env.KV.get(`rooms:${me.userId}`)
-  const rList: string[] = rawR ? JSON.parse(rawR) : []
+  const rList: string[] = safeJson(rawR, [])
   await c.env.KV.put(`rooms:${me.userId}`, JSON.stringify(rList.filter(r => r !== roomId)))
   return c.json({ success: true })
 })
@@ -295,18 +389,26 @@ app.post('/api/rooms/:roomId/leave', async (c) => {
 app.post('/api/chat', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { roomId, message, type } = await c.req.json()
-  if (!roomId || !message) return c.json({ error: 'missing' }, 400)
+  const body = await safeReqJson(c)
+  const { roomId, message, type } = body
+  if (!roomId || typeof roomId !== 'string') return c.json({ success: false, error: 'roomId required' }, 400)
+  if (!message || typeof message !== 'string') return c.json({ success: false, error: 'message required' }, 400)
+  // [FIX] 백엔드 메시지 길이 검증 (프론트 maxlength 우회 방어)
+  if (message.length > 500) return c.json({ success: false, error: '메시지는 500자 이하입니다' }, 400)
+  // [FIX] type 화이트리스트
+  const VALID_TYPES = ['text', 'location', 'system', 'sos']
+  const safeType = VALID_TYPES.includes(type) ? type : 'text'
   // 멤버 확인
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
-  if (!roomRaw) return c.json({ error: 'Room not found' }, 404)
-  const room = JSON.parse(roomRaw)
-  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
+  if (!roomRaw) return c.json({ success: false, error: 'Room not found' }, 404)
+  const room = safeJson(roomRaw, null) as any
+  if (!room) return c.json({ success: false, error: '서버 오류' }, 500)
+  if (!room.members.includes(me.userId)) return c.json({ success: false, error: 'Not a member' }, 403)
   const ts = Date.now()
   const msgId = `${ts}_${Math.random().toString(36).substr(2, 6)}`
   await c.env.KV.put(`chat:${roomId}:${msgId}`, JSON.stringify({
     msgId, userId: me.userId, userName: me.displayName, avatar: me.avatar,
-    message, type: type || 'text', timestamp: ts
+    message: message.trim(), type: safeType, timestamp: ts
   }), { expirationTtl: 86400 * 2 })
   return c.json({ success: true, msgId, timestamp: ts })
 })
@@ -318,35 +420,40 @@ app.get('/api/chat/:roomId', async (c) => {
   const roomId = c.req.param('roomId')
   // 멤버 확인
   const roomRaw = await c.env.KV.get(`room:${roomId}`)
-  if (!roomRaw) return c.json({ messages: [] })
-  const room = JSON.parse(roomRaw)
-  if (!room.members.includes(me.userId)) return c.json({ error: 'Not a member' }, 403)
-  const since = Number(c.req.query('since') || '0')
-  const list = await c.env.KV.list({ prefix: `chat:${roomId}:` })
+  if (!roomRaw) return c.json({ success: true, messages: [] })
+  const room = safeJson(roomRaw, null) as any
+  if (!room) return c.json({ success: true, messages: [] })
+  if (!room.members.includes(me.userId)) return c.json({ success: false, error: 'Not a member' }, 403)
+  const since = Math.max(0, Number(c.req.query('since') || '0'))
+  const list = await c.env.KV.list({ prefix: `chat:${roomId}:`, limit: 200 })
   const filtered = list.keys.filter(k => {
-    const ts = Number(k.name.split(':')[2]?.split('_')[0] || '0')
+    // [FIX] 키 파싱: chat:{roomId}:{ts}_{random} 형식에서 타임스탬프 추출
+    const parts = k.name.split(':')
+    const lastPart = parts[parts.length - 1] || ''
+    const ts = Number(lastPart.split('_')[0] || '0')
     return ts > since
   })
-  if (!filtered.length) return c.json({ messages: [] })
+  if (!filtered.length) return c.json({ success: true, messages: [] })
   const vals = await Promise.all(filtered.map(k => c.env.KV.get(k.name)))
-  const messages = vals.filter(Boolean).map(v => JSON.parse(v!)).filter(m => m.timestamp > since)
-  messages.sort((a: any, b: any) => a.timestamp - b.timestamp)
-  return c.json({ messages: messages.slice(-60) })
+  const messages = vals.filter(Boolean).map(v => safeJson(v!, null)).filter((m: any) => m && m.timestamp > since)
+  ;(messages as any[]).sort((a: any, b: any) => a.timestamp - b.timestamp)
+  return c.json({ success: true, messages: (messages as any[]).slice(-60) })
 })
 
 // ── SOS 발송 ──────────────────────────────────────────────────
 app.post('/api/sos', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { lat, lng } = await c.req.json()
+  const body = await safeReqJson(c)
+  const { lat, lng } = body
   const raw = await c.env.KV.get(`friends:${me.userId}`)
-  const friendIds: string[] = raw ? JSON.parse(raw) : []
+  const friendIds: string[] = safeJson(raw, [])
   const ts = Date.now()
   const sosId = `sos_${me.userId}_${ts}`
   await c.env.KV.put(`sos:${sosId}`, JSON.stringify({
     msgId: `${ts}_sos`, userId: me.userId, userName: me.displayName, avatar: me.avatar,
     message: `🆘 SOS! ${me.displayName}님이 긴급 도움을 요청합니다!`,
-    lat, lng, sosId, targets: [me.userId, ...friendIds], timestamp: ts,
+    lat: lat || null, lng: lng || null, sosId, targets: [me.userId, ...friendIds], timestamp: ts,
     active: true, acknowledgedBy: []
   }), { expirationTtl: 3600 })
   return c.json({ success: true, sosId })
@@ -356,11 +463,14 @@ app.post('/api/sos', async (c) => {
 app.post('/api/sos/acknowledge', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { sosId } = await c.req.json()
-  if (!sosId) return c.json({ error: 'sosId required' }, 400)
+  const body = await safeReqJson(c)
+  const { sosId } = body
+  if (!sosId || typeof sosId !== 'string') return c.json({ success: false, error: 'sosId required' }, 400)
   const raw = await c.env.KV.get(`sos:${sosId}`)
-  if (!raw) return c.json({ error: 'SOS not found' }, 404)
-  const sos = JSON.parse(raw)
+  if (!raw) return c.json({ success: false, error: 'SOS not found' }, 404)
+  const sos = safeJson(raw, null) as any
+  if (!sos) return c.json({ success: false, error: '서버 오류' }, 500)
+  if (!Array.isArray(sos.acknowledgedBy)) sos.acknowledgedBy = []
   if (!sos.acknowledgedBy.includes(me.userId)) sos.acknowledgedBy.push(me.userId)
   await c.env.KV.put(`sos:${sosId}`, JSON.stringify(sos), { expirationTtl: 3600 })
   return c.json({ success: true, acknowledgedBy: sos.acknowledgedBy })
@@ -370,12 +480,14 @@ app.post('/api/sos/acknowledge', async (c) => {
 app.post('/api/sos/dismiss', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { sosId } = await c.req.json()
-  if (!sosId) return c.json({ error: 'sosId required' }, 400)
+  const body = await safeReqJson(c)
+  const { sosId } = body
+  if (!sosId || typeof sosId !== 'string') return c.json({ success: false, error: 'sosId required' }, 400)
   const raw = await c.env.KV.get(`sos:${sosId}`)
-  if (!raw) return c.json({ error: 'SOS not found' }, 404)
-  const sos = JSON.parse(raw)
-  if (sos.userId !== me.userId) return c.json({ error: 'Only sender can dismiss' }, 403)
+  if (!raw) return c.json({ success: false, error: 'SOS not found' }, 404)
+  const sos = safeJson(raw, null) as any
+  if (!sos) return c.json({ success: false, error: '서버 오류' }, 500)
+  if (sos.userId !== me.userId) return c.json({ success: false, error: 'Only sender can dismiss' }, 403)
   sos.active = false
   await c.env.KV.put(`sos:${sosId}`, JSON.stringify(sos), { expirationTtl: 300 })
   return c.json({ success: true })
@@ -385,26 +497,35 @@ app.post('/api/sos/dismiss', async (c) => {
 app.get('/api/sos/check', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const since = Number(c.req.query('since') || '0')
-  const list = await c.env.KV.list({ prefix: `sos:sos_` })
+  const since = Math.max(0, Number(c.req.query('since') || '0'))
+  const list = await c.env.KV.list({ prefix: `sos:sos_`, limit: 50 })
   const filtered = list.keys.filter(k => {
-    const parts = k.name.split('_')
-    const ts = Number(parts[parts.length - 1] || '0')
-    return ts > since
+    // 키 형식: sos:sos_{userId}_{timestamp} (언더스코어로 구분)
+    // userId에 언더스코어가 있을 수 있으므로 마지막 세그먼트가 타임스탬프
+    const withoutPrefix = k.name.replace('sos:sos_', '')
+    const lastUnder = withoutPrefix.lastIndexOf('_')
+    const ts = Number(lastUnder >= 0 ? withoutPrefix.slice(lastUnder + 1) : '0')
+    return !isNaN(ts) && ts > since
   })
-  if (!filtered.length) return c.json({ sos: [] })
+  if (!filtered.length) return c.json({ success: true, sos: [] })
   const vals = await Promise.all(filtered.map(k => c.env.KV.get(k.name)))
-  const sos = vals.filter(Boolean).map(v => JSON.parse(v!))
-    .filter(m => m.timestamp > since && Array.isArray(m.targets) && m.targets.includes(me.userId))
-  return c.json({ sos })
+  const sos = vals.filter(Boolean)
+    .map(v => safeJson(v!, null))
+    .filter((m: any) => m && m.timestamp > since && Array.isArray(m.targets) && m.targets.includes(me.userId))
+  return c.json({ success: true, sos })
 })
 
 // ── 약속장소 ──────────────────────────────────────────────────
 app.post('/api/appointment', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
-  const { roomId, placeName, lat, lng } = await c.req.json()
-  await c.env.KV.put(`apt:${roomId}`, JSON.stringify({ placeName, lat, lng, setBy: me.displayName, setAt: Date.now() }), { expirationTtl: 86400 })
+  const body = await safeReqJson(c)
+  const { roomId, placeName, lat, lng } = body
+  if (!roomId || !placeName) return c.json({ success: false, error: 'roomId, placeName required' }, 400)
+  if (typeof placeName !== 'string' || placeName.length > 100) return c.json({ success: false, error: '장소명이 너무 깁니다' }, 400)
+  const latN = Number(lat), lngN = Number(lng)
+  if (isNaN(latN) || isNaN(lngN)) return c.json({ success: false, error: '유효하지 않은 좌표입니다' }, 400)
+  await c.env.KV.put(`apt:${roomId}`, JSON.stringify({ placeName: placeName.trim(), lat: latN, lng: lngN, setBy: me.displayName, setAt: Date.now() }), { expirationTtl: 86400 })
   return c.json({ success: true })
 })
 
@@ -412,12 +533,14 @@ app.get('/api/appointment/:roomId', async (c) => {
   const me = await getUser(c)
   if (!me) return c.json({ success: false, error: 'Unauthorized' }, 401)
   const val = await c.env.KV.get(`apt:${c.req.param('roomId')}`)
-  return c.json({ appointment: val ? JSON.parse(val) : null })
+  return c.json({ success: true, appointment: val ? safeJson(val, null) : null })
 })
 
 // ── 대중교통 ──────────────────────────────────────────────────
 app.get('/api/transit', async (c) => {
   const { sx, sy, ex, ey } = c.req.query()
+  // [FIX] 좌표 파라미터 검증
+  if (!sx || !sy || !ex || !ey) return c.json({ success: false, error: '좌표 파라미터 필요 (sx,sy,ex,ey)' }, 400)
   const apiKey = c.env.ODSAY_API_KEY
   if (!apiKey || apiKey === 'demo' || apiKey.startsWith('여기에')) {
     return c.json({ demo: true, result: { path: [
@@ -428,10 +551,11 @@ app.get('/api/transit', async (c) => {
     ]}})
   }
   try {
-    const url = `https://api.odsay.com/v1/api/searchPubTransPathT?SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&apiKey=${apiKey}`
+    const url = `https://api.odsay.com/v1/api/searchPubTransPathT?SX=${encodeURIComponent(sx)}&SY=${encodeURIComponent(sy)}&EX=${encodeURIComponent(ex)}&EY=${encodeURIComponent(ey)}&apiKey=${apiKey}`
     const res = await fetch(url)
+    if (!res.ok) return c.json({ success: false, error: 'ODsay API 오류' }, 502)
     return c.json(await res.json())
-  } catch { return c.json({ error: 'API error' }, 500) }
+  } catch (e) { return c.json({ success: false, error: 'API 연결 실패' }, 500) }
 })
 
 // ── 메인 HTML ─────────────────────────────────────────────────
